@@ -16,7 +16,7 @@ type Command struct {
 type File struct {
 	Root bool `toml:"root,omitempty" yaml:"root,omitempty"`
 
-	Commands []*Command `toml:"cmds,omitempty" yaml:"cmds,omitempty"`
+	Commands []*Command `toml:"commands,omitempty" yaml:"commands,omitempty"`
 
 	filepath string
 	dir      string

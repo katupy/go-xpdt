@@ -244,7 +244,7 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 			// considering that later all files are processed
 			// in the reverse order.
 
-			index := fileIndex - index - 1
+			index := fileIndex - index
 			files = append(files[:index+1], files[index:]...)
 			files[index] = file
 			fileIndex = index

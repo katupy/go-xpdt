@@ -3,6 +3,7 @@ package env
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -216,9 +217,171 @@ func TestGetFiles(t *testing.T) {
 			config: &conf.Config{
 				Env: &conf.Env{
 					Load: &conf.EnvLoad{
-						Dir:      "tests",
-						Filename: "single-root-file.yaml",
+						Dir: filepath.Join("tests", "single-root-file", "1", "2"),
 					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "single-root-file", "1", "2")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "single-root-file", "1", "2", conf.DefaultEnvLoadFilename)),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "single-root-file", "1")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "single-root-file", "1", conf.DefaultEnvLoadFilename)),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "single-root-file")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "single-root-file", conf.DefaultEnvLoadFilename)),
+				},
+			},
+		},
+		{
+			name: "multiple-root-files",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir: filepath.Join("tests", "multiple-root-files", "1"),
+					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-root-files", "1")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "multiple-root-files", "1", conf.DefaultEnvLoadFilename)),
+				},
+			},
+		},
+		{
+			name: "overwrite-root-file",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir: filepath.Join("tests", "overwrite-root-file", "1", "2"),
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "overwrite-root-file", "1")),
+							File: filepath.Join("tests", "overwrite-root-file", "overwrite.yaml"),
+							Root: true,
+						},
+					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "overwrite-root-file", "1", "2")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "overwrite-root-file", "1", "2", conf.DefaultEnvLoadFilename)),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "overwrite-root-file", "1")),
+					filepath: filepath.Join("tests", "overwrite-root-file", "overwrite.yaml"),
+				},
+			},
+		},
+		{
+			name: "overwrite-skip",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir: filepath.Join("tests", "overwrite-skip", "1", "2"),
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "overwrite-skip", "1")),
+							Skip: true,
+						},
+					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "overwrite-skip", "1", "2")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "overwrite-skip", "1", "2", conf.DefaultEnvLoadFilename)),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "overwrite-skip")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "overwrite-skip", conf.DefaultEnvLoadFilename)),
+				},
+			},
+		},
+		{
+			name: "multiple-overwrites-same-dir",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir: filepath.Join("tests", "multiple-overwrites-same-dir", "1", "2"),
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-1.yaml"),
+						},
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-2.yaml"),
+						},
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-3.yaml"),
+						},
+					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1", "2")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1", "2", conf.DefaultEnvLoadFilename)),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+					filepath: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-3.yaml"),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+					filepath: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-2.yaml"),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", "1")),
+					filepath: filepath.Join("tests", "multiple-overwrites-same-dir", "overwrite-1.yaml"),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir")),
+					filepath: must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-same-dir", conf.DefaultEnvLoadFilename)),
+				},
+			},
+		},
+		{
+			name: "multiple-overwrites-intermediate-root",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir: filepath.Join("tests", "multiple-overwrites-intermediate-root", "1"),
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-intermediate-root", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-intermediate-root", "overwrite-1.yaml"),
+						},
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-intermediate-root", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-intermediate-root", "overwrite-2.yaml"),
+						},
+						{
+							Dir:  must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-intermediate-root", "1")),
+							File: filepath.Join("tests", "multiple-overwrites-intermediate-root", "overwrite-3.yaml"),
+						},
+					},
+				},
+			},
+			files: []*File{
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-intermediate-root", "1")),
+					filepath: filepath.Join("tests", "multiple-overwrites-intermediate-root", "overwrite-2.yaml"),
+				},
+				{
+					dir:      must.FilepathAbs(filepath.Join("tests", "multiple-overwrites-intermediate-root", "1")),
+					filepath: filepath.Join("tests", "multiple-overwrites-intermediate-root", "overwrite-1.yaml"),
 				},
 			},
 		},
@@ -241,6 +404,7 @@ func TestGetFiles(t *testing.T) {
 					have := haveFiles[i]
 
 					assert.Equal(st, want.dir, have.dir, "File[%d].dir mismatch", i)
+					assert.Equal(st, want.filepath, have.filepath, "File[%d].filepath mismatch", i)
 				}
 			}
 		})
