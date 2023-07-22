@@ -24,8 +24,10 @@ var servicesStopCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func initServices() error {
 	servicesCmd.AddCommand(servicesStartCmd)
 	servicesCmd.AddCommand(servicesStopCmd)
 	mainCmd.AddCommand(servicesCmd)
+
+	return nil
 }
