@@ -22,7 +22,7 @@ func TestLoad(t *testing.T) {
 			err: &klib.Error{
 				ID:     "01H5XE3N8EG0EER1J8ZSBB341D",
 				Status: http.StatusBadRequest,
-				Code:   klib.ErrMissingArgument,
+				Code:   klib.CodeMissingValue,
 				Path:   ".",
 			},
 		},
@@ -32,7 +32,7 @@ func TestLoad(t *testing.T) {
 			err: &klib.Error{
 				ID:     "01H5XE7HV41CKBWXM2KWQE2E0V",
 				Status: http.StatusBadRequest,
-				Code:   klib.ErrMissingArgument,
+				Code:   klib.CodeMissingValue,
 				Path:   ".env",
 			},
 		},
@@ -44,7 +44,7 @@ func TestLoad(t *testing.T) {
 			err: &klib.Error{
 				ID:     "01H5XEGQ0B1003AC3YWTW74TCD",
 				Status: http.StatusBadRequest,
-				Code:   klib.ErrMissingArgument,
+				Code:   klib.CodeMissingValue,
 				Path:   ".env.load",
 			},
 		},
@@ -144,7 +144,7 @@ func TestGetFiles(t *testing.T) {
 			err: &klib.Error{
 				ID:     "01H5XEMMAB72AYK72CEV6JN09N",
 				Status: http.StatusBadRequest,
-				Code:   klib.ErrMissingArgument,
+				Code:   klib.CodeMissingValue,
 				Path:   ".env.load.dir",
 			},
 		},
@@ -160,7 +160,7 @@ func TestGetFiles(t *testing.T) {
 			err: &klib.Error{
 				ID:     "01H5XEND4HEPG9GDKMCQ1P2VGH",
 				Status: http.StatusBadRequest,
-				Code:   klib.ErrMissingArgument,
+				Code:   klib.CodeMissingValue,
 				Path:   ".env.load.filename",
 			},
 		},

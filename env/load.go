@@ -24,7 +24,7 @@ func Load(c *conf.Config) error {
 		return &klib.Error{
 			ID:     "01H5XE3N8EG0EER1J8ZSBB341D",
 			Status: http.StatusBadRequest,
-			Code:   klib.ErrMissingArgument,
+			Code:   klib.CodeMissingValue,
 			Path:   ".",
 			Detail: "Missing config",
 		}
@@ -34,7 +34,7 @@ func Load(c *conf.Config) error {
 		return &klib.Error{
 			ID:     "01H5XE7HV41CKBWXM2KWQE2E0V",
 			Status: http.StatusBadRequest,
-			Code:   klib.ErrMissingArgument,
+			Code:   klib.CodeMissingValue,
 			Path:   ".env",
 			Detail: "Missing config.env",
 		}
@@ -44,7 +44,7 @@ func Load(c *conf.Config) error {
 		return &klib.Error{
 			ID:     "01H5XEGQ0B1003AC3YWTW74TCD",
 			Status: http.StatusBadRequest,
-			Code:   klib.ErrMissingArgument,
+			Code:   klib.CodeMissingValue,
 			Path:   ".env.load",
 			Detail: "Missing config.env.load",
 		}
@@ -112,9 +112,9 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 		return nil, &klib.Error{
 			ID:     "01H5XEMMAB72AYK72CEV6JN09N",
 			Status: http.StatusBadRequest,
-			Code:   klib.ErrMissingArgument,
+			Code:   klib.CodeMissingValue,
 			Path:   ".env.load.dir",
-			Title:  "Missing config.env.load.dir",
+			Detail: "Missing config.env.load.dir",
 		}
 	}
 
@@ -129,9 +129,9 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 		return nil, &klib.Error{
 			ID:     "01H5XEND4HEPG9GDKMCQ1P2VGH",
 			Status: http.StatusBadRequest,
-			Code:   klib.ErrMissingArgument,
+			Code:   klib.CodeMissingValue,
 			Path:   ".env.load.filename",
-			Title:  "Missing config.env.load.filename",
+			Detail: "Missing config.env.load.filename",
 		}
 	}
 
@@ -187,8 +187,9 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 					return nil, &klib.Error{
 						ID:     "01H5XEW98E1T0EFFW6T2VEY3W9",
 						Status: http.StatusInternalServerError,
-						Code:   klib.ErrReadFileError,
+						Code:   klib.CodeFileError,
 						Path:   fmt.Sprintf(".overwrites[%d].file", overwriteIndex),
+						Title:  "Failed to read file",
 						Cause:  err.Error(),
 						Meta: map[string]any{
 							"filepath": overwrite.File,
@@ -217,7 +218,8 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 				return nil, &klib.Error{
 					ID:     "01H5XF4Y6HPNG0D68558A0JSG5",
 					Status: http.StatusInternalServerError,
-					Code:   klib.ErrReadFileError,
+					Code:   klib.CodeFileError,
+					Title:  "Failed to read file",
 					Cause:  err.Error(),
 					Meta: map[string]any{
 						"filepath": f,
@@ -232,7 +234,8 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 				return nil, &klib.Error{
 					ID:     "01H5XFA1K3HW36GG5721H9GB2Q",
 					Status: http.StatusBadRequest,
-					Code:   klib.ErrUnmarshalingError,
+					Code:   klib.CodeSerializationError,
+					Title:  "Failed to unmarshal file",
 					Cause:  err.Error(),
 				}
 			}
