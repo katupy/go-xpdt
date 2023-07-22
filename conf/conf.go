@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const DefaultEnvFilename = ".xpdt.yaml"
+
 const EnvPrefix = "XPDT"
 const EnvConfigPath = EnvPrefix + "_CONFIG_PATH"
 

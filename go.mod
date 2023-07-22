@@ -3,6 +3,7 @@ module go.katupy.io/xpdt
 go 1.19
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0

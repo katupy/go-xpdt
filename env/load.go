@@ -22,7 +22,7 @@ func Load(c *conf.Config) error {
 
 	if c == nil {
 		return &klib.Error{
-			ID:     "01H5XE3N8EG0EER1J8ZSBB341D",
+			ID:     "df006438-8216-4fbf-a4b6-3c4f933a6c0d",
 			Status: http.StatusBadRequest,
 			Code:   klib.CodeMissingValue,
 			Path:   ".",
@@ -32,7 +32,7 @@ func Load(c *conf.Config) error {
 
 	if c.Env == nil {
 		return &klib.Error{
-			ID:     "01H5XE7HV41CKBWXM2KWQE2E0V",
+			ID:     "0002b99d-191f-4bb1-9120-d5853df954c9",
 			Status: http.StatusBadRequest,
 			Code:   klib.CodeMissingValue,
 			Path:   ".env",
@@ -42,7 +42,7 @@ func Load(c *conf.Config) error {
 
 	if c.Env.Load == nil {
 		return &klib.Error{
-			ID:     "01H5XEGQ0B1003AC3YWTW74TCD",
+			ID:     "13738af0-94ef-4589-bf2d-e11f6873f2cd",
 			Status: http.StatusBadRequest,
 			Code:   klib.CodeMissingValue,
 			Path:   ".env.load",
@@ -52,7 +52,7 @@ func Load(c *conf.Config) error {
 
 	files, err := GetFiles(c)
 	if err != nil {
-		return klib.ForwardError("01H5XEPKYK78YNAX4SMFD3F98M", err)
+		return klib.ForwardError("b7eb276b-2aa6-4058-a711-3f09308ee200", err)
 	}
 
 	if len(c.Env.Load.Environ) == 0 {
@@ -106,11 +106,11 @@ func GetEnviron(environ []string, ignoreCase bool) map[string]string {
 // GetFiles returns a slice of files to be loaded, starting from the current directory
 // and going up the directory tree until a root directory is reached.
 func GetFiles(c *conf.Config) ([]*File, error) {
-	c.Env.Load.Dir = strings.TrimSpace(c.Env.Load.Dir)
+	loadDir := strings.TrimSpace(c.Env.Load.Dir)
 
-	if c.Env.Load.Dir == "" {
+	if loadDir == "" {
 		return nil, &klib.Error{
-			ID:     "01H5XEMMAB72AYK72CEV6JN09N",
+			ID:     "3fce5cb0-9f08-4ab0-bfb2-7071aa85cdd5",
 			Status: http.StatusBadRequest,
 			Code:   klib.CodeMissingValue,
 			Path:   ".env.load.dir",
@@ -118,16 +118,16 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 		}
 	}
 
-	dir, err := filepath.Abs(c.Env.Load.Dir)
+	dir, err := filepath.Abs(loadDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get abs path of c.Env.Load.Dir: %w", err)
 	}
 
-	filename := strings.TrimSpace(c.Env.Load.Filename)
+	loadFilename := strings.TrimSpace(c.Env.Load.Filename)
 
-	if filename == "" {
+	if loadFilename == "" {
 		return nil, &klib.Error{
-			ID:     "01H5XEND4HEPG9GDKMCQ1P2VGH",
+			ID:     "99d44310-a1d8-4a8e-a00e-30ba4f3d10a9",
 			Status: http.StatusBadRequest,
 			Code:   klib.CodeMissingValue,
 			Path:   ".env.load.filename",
@@ -140,148 +140,171 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 
 	for i := range c.Env.Overwrites {
 		overwrite := c.Env.Overwrites[i]
-		overwriteDir := filepath.Clean(overwrite.Dir)
+		overwriteDir := strings.TrimSpace(overwrite.Dir)
 
-		globalOverwrites[overwriteDir] = append(globalOverwrites[overwriteDir], overwrite)
+		if overwriteDir == "" {
+			return nil, &klib.Error{
+				ID:     "dc558b94-ddf9-4280-8eab-94e16cc79418",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeMissingValue,
+				Path:   fmt.Sprintf(".env.overwrites[%d].dir", i),
+				Detail: "Overwrite dir cannot be empty.",
+				Meta: map[string]any{
+					"#i":  i,
+					"dir": overwrite.Dir,
+				},
+			}
+		}
+
+		cleanDir := filepath.Clean(overwrite.Dir)
+
+		if !filepath.IsAbs(cleanDir) {
+			return nil, &klib.Error{
+				ID:     "8ee66ad2-84e7-4aa1-8151-55af5c6f4b7d",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeInvalidValue,
+				Path:   fmt.Sprintf(".env.overwrites[%d].dir", i),
+				Detail: "Overwrite dir must be absolute.",
+				Meta: map[string]any{
+					"#i":  i,
+					"dir": overwrite.Dir,
+				},
+			}
+		}
+
+		globalOverwrites[cleanDir] = append(globalOverwrites[overwriteDir], overwrite)
 	}
 
 	var files []*File
 
-	stop := func() bool {
-		parentDir := filepath.Join(dir, "../")
-
-		if parentDir == dir {
-			return true
+	// addFile adds the file to the files slice and
+	// returns whether the file is a root file,
+	// indicating that file discovery should stop.
+	addFile := func(index int, loader *conf.EnvOverwrite) (bool, error) {
+		if loader.Skip {
+			return loader.Root, nil
 		}
 
-		dir = parentDir
+		var path string
 
-		return false
-	}
+		if loader.Dir != "" {
+			path = fmt.Sprintf(".env.overwrites[%d].file", index)
+		}
 
-	for {
-		var b []byte
-		var f string
-		var overwriteLoop bool
-		var overwriteIndex int
-
-	OVERWRITES:
-
-		// First check if there are global overwrites for this directory.
-		overwrites, ok := globalOverwrites[dir]
-
-		var root, skip bool
-
-		if ok {
-			if !overwriteLoop {
-				overwriteLoop = true
-			}
-
-			overwrite := overwrites[overwriteIndex]
-
-			skip = overwrite.Skip
-
-			if !skip {
-				b, err = os.ReadFile(overwrite.File)
-				if err != nil {
-					return nil, &klib.Error{
-						ID:     "01H5XEW98E1T0EFFW6T2VEY3W9",
-						Status: http.StatusInternalServerError,
-						Code:   klib.CodeFileError,
-						Path:   fmt.Sprintf(".overwrites[%d].file", overwriteIndex),
-						Title:  "Failed to read file",
-						Cause:  err.Error(),
-						Meta: map[string]any{
-							"filepath": overwrite.File,
-						},
-					}
-				}
-			}
-
-			f = overwrite.File
-			root = overwrite.Root
-
-			overwriteIndex++
-		} else {
-			f = filepath.Join(dir, filename)
-
-			b, err = os.ReadFile(f)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					if stop() {
-						break
-					}
-
-					continue
+		b, err := os.ReadFile(loader.File)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				if loader.Dir == "" {
+					// Move forward if the loader is not an overwrite.
+					return false, nil
 				}
 
-				return nil, &klib.Error{
-					ID:     "01H5XF4Y6HPNG0D68558A0JSG5",
-					Status: http.StatusInternalServerError,
-					Code:   klib.CodeFileError,
-					Title:  "Failed to read file",
+				return false, &klib.Error{
+					ID:     "abcd4eb4-6a53-49f2-b4ce-3e6bb8562609",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeNotFound,
+					Path:   path,
+					Title:  "File not found",
 					Cause:  err.Error(),
 					Meta: map[string]any{
-						"filepath": f,
+						"filepath": loader.File,
 					},
 				}
 			}
-		}
 
-		if !skip {
-			file := new(File)
-			if err := yaml.Unmarshal(b, file); err != nil {
-				return nil, &klib.Error{
-					ID:     "01H5XFA1K3HW36GG5721H9GB2Q",
-					Status: http.StatusBadRequest,
-					Code:   klib.CodeSerializationError,
-					Title:  "Failed to unmarshal file",
-					Cause:  err.Error(),
-				}
-			}
-
-			file.filepath = f
-			file.dir = dir
-
-			switch {
-			case root:
-				file.Root = true
-			}
-
-			log.Debug().
-				Str("_label", "envFile").
-				Str("dir", dir).
-				Str("file", file.filepath).
-				Int("index", len(files)).
-				Bool("overwriteLoop", overwriteLoop).
-				Int("overwriteIndex", overwriteIndex).
-				Bool("root", file.Root).
-				Send()
-
-			if overwriteLoop && overwriteIndex > 1 {
-				// Insert the current overwrite before others so they are
-				// processed in the correct order later.
-				index := len(files) - overwriteIndex + 1
-				files = append(files[:index+1], files[index:]...)
-				files[index] = file
-			} else {
-				files = append(files, file)
-			}
-
-			if file.Root {
-				break
+			return false, &klib.Error{
+				ID:     "5b15c330-a9a8-4426-aa1e-83120e7f9996",
+				Status: http.StatusInternalServerError,
+				Code:   klib.CodeFileError,
+				Path:   path,
+				Title:  "Failed to read file",
+				Cause:  err.Error(),
+				Meta: map[string]any{
+					"filepath": loader.File,
+				},
 			}
 		}
 
-		overwriteLoop = overwriteLoop && overwriteIndex != len(overwrites)
-
-		if overwriteLoop {
-			goto OVERWRITES
+		file := new(File)
+		if err := yaml.Unmarshal(b, file); err != nil {
+			return false, &klib.Error{
+				ID:     "f7476e4b-e592-4f2c-ab97-cae327b957a4",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeSerializationError,
+				Path:   path,
+				Title:  "Failed to unmarshal file",
+				Cause:  err.Error(),
+			}
 		}
 
-		if stop() {
+		file.filepath = loader.File
+		file.dir = dir
+
+		if loader.Root {
+			file.Root = true
+		}
+
+		// fileIndex indicates the index of file in files after its addition.
+		fileIndex := len(files)
+
+		if index == 0 {
+			// There is a single loader for this directory.
+			files = append(files, file)
+		} else {
+			// There are multiple loaders for this directory,
+			// so we need to insert the file at the correct index
+			// considering that later all files are processed
+			// in the reverse order.
+
+			index := fileIndex - index - 1
+			files = append(files[:index+1], files[index:]...)
+			files[index] = file
+			fileIndex = index
+		}
+
+		log.Debug().
+			Str("_label", "envFile").
+			Str("dir", dir).
+			Str("file", file.filepath).
+			Int("fileIndex", fileIndex).
+			Int("loaderIndex", index).
+			Int("filesLen", len(files)).
+			Bool("root", file.Root).
+			Send()
+
+		return file.Root, nil
+	}
+
+GET_FILES_LOOP:
+	for {
+		// First check if there are global overwrites for this directory.
+		loaders, ok := globalOverwrites[dir]
+
+		if !ok {
+			loaders = []*conf.EnvOverwrite{{
+				File: filepath.Join(dir, loadFilename),
+			}}
+		}
+
+		for i := range loaders {
+			root, err := addFile(i, loaders[i])
+			if err != nil {
+				return nil, err
+			}
+
+			if root {
+				break GET_FILES_LOOP
+			}
+		}
+
+		parentDir := filepath.Join(dir, "../")
+
+		if parentDir == dir {
+			// Reached a root directory.
 			break
 		}
+
+		dir = parentDir
 	}
 
 	return files, nil

@@ -112,7 +112,7 @@ func initEnv() error {
 		return fmt.Errorf("failed to bind env.load.dir flag: %w\n", err)
 	}
 
-	envLoadCmd.PersistentFlags().StringP("filename", "f", ".xpdt.yaml", "Config filename.")
+	envLoadCmd.PersistentFlags().StringP("filename", "f", conf.DefaultEnvFilename, "Config filename.")
 	if err := viper.BindPFlag("env.load.filename", envLoadCmd.PersistentFlags().Lookup("filename")); err != nil {
 		return fmt.Errorf("failed to bind env.load.filename flag: %w\n", err)
 	}

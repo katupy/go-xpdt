@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
+	"go.katupy.io/klib/must"
 
 	"go.katupy.io/xpdt/conf"
 )
@@ -20,7 +22,7 @@ func TestLoad(t *testing.T) {
 		{
 			name: "nil-config",
 			err: &klib.Error{
-				ID:     "01H5XE3N8EG0EER1J8ZSBB341D",
+				ID:     "df006438-8216-4fbf-a4b6-3c4f933a6c0d",
 				Status: http.StatusBadRequest,
 				Code:   klib.CodeMissingValue,
 				Path:   ".",
@@ -30,7 +32,7 @@ func TestLoad(t *testing.T) {
 			name:   "nil-env",
 			config: &conf.Config{},
 			err: &klib.Error{
-				ID:     "01H5XE7HV41CKBWXM2KWQE2E0V",
+				ID:     "0002b99d-191f-4bb1-9120-d5853df954c9",
 				Status: http.StatusBadRequest,
 				Code:   klib.CodeMissingValue,
 				Path:   ".env",
@@ -42,7 +44,7 @@ func TestLoad(t *testing.T) {
 				Env: &conf.Env{},
 			},
 			err: &klib.Error{
-				ID:     "01H5XEGQ0B1003AC3YWTW74TCD",
+				ID:     "13738af0-94ef-4589-bf2d-e11f6873f2cd",
 				Status: http.StatusBadRequest,
 				Code:   klib.CodeMissingValue,
 				Path:   ".env.load",
@@ -54,19 +56,8 @@ func TestLoad(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			if err := Load(tc.config); err != nil {
-				if tc.err == nil {
-					st.Fatalf("failed to Load: %s", err)
-				}
-
-				wantErr := tc.err
-				haveErr := err.(*klib.Error)
-
-				assert.Equal(st, wantErr.ID, haveErr.ID, "err.ID mismatch")
-				assert.Equal(st, wantErr.Status, haveErr.Status, "err.Status mismatch")
-				assert.Equal(st, wantErr.Code, haveErr.Code, "err.Code mismatch")
-				assert.Equal(st, wantErr.Path, haveErr.Path, "err.Path mismatch")
-
+			err := Load(tc.config)
+			if klib.CheckTestError(st, err, tc.err) {
 				return
 			}
 		})
@@ -132,6 +123,7 @@ func TestGetFiles(t *testing.T) {
 	testCases := []*struct {
 		name   string
 		config *conf.Config
+		files  []*File
 		err    *klib.Error
 	}{
 		{
@@ -142,7 +134,7 @@ func TestGetFiles(t *testing.T) {
 				},
 			},
 			err: &klib.Error{
-				ID:     "01H5XEMMAB72AYK72CEV6JN09N",
+				ID:     "3fce5cb0-9f08-4ab0-bfb2-7071aa85cdd5",
 				Status: http.StatusBadRequest,
 				Code:   klib.CodeMissingValue,
 				Path:   ".env.load.dir",
@@ -158,10 +150,105 @@ func TestGetFiles(t *testing.T) {
 				},
 			},
 			err: &klib.Error{
-				ID:     "01H5XEND4HEPG9GDKMCQ1P2VGH",
+				ID:     "99d44310-a1d8-4a8e-a00e-30ba4f3d10a9",
 				Status: http.StatusBadRequest,
 				Code:   klib.CodeMissingValue,
 				Path:   ".env.load.filename",
+			},
+		},
+		{
+			name: "empty-env-overwrite-dir",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      ".",
+						Filename: "-",
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{},
+					},
+				},
+			},
+			err: &klib.Error{
+				ID:     "dc558b94-ddf9-4280-8eab-94e16cc79418",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeMissingValue,
+				Path:   ".env.overwrites[0].dir",
+			},
+		},
+		{
+			name: "non-absolute-env-overwrite-dir",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      ".",
+						Filename: "-",
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir: must.FilepathAbs("."),
+						},
+						{
+							Dir: ".",
+						},
+					},
+				},
+			},
+			err: &klib.Error{
+				ID:     "8ee66ad2-84e7-4aa1-8151-55af5c6f4b7d",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeInvalidValue,
+				Path:   ".env.overwrites[1].dir",
+			},
+		},
+		{
+			name: "file-not-found",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      ".",
+						Filename: "-",
+					},
+					Overwrites: []*conf.EnvOverwrite{
+						{
+							Dir:  must.FilepathAbs("."),
+							File: uuid.NewString(),
+						},
+					},
+				},
+			},
+			err: &klib.Error{
+				ID:     "abcd4eb4-6a53-49f2-b4ce-3e6bb8562609",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeNotFound,
+				Path:   ".env.overwrites[0].file",
+			},
+		},
+		{
+			name: "failed-to-unmarshal",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      "tests",
+						Filename: "failed-to-unmarshal.yaml",
+					},
+				},
+			},
+			err: &klib.Error{
+				ID:     "f7476e4b-e592-4f2c-ab97-cae327b957a4",
+				Status: http.StatusBadRequest,
+				Code:   klib.CodeSerializationError,
+			},
+		},
+		{
+			name: "no-env-files",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      ".",
+						Filename: uuid.NewString(),
+					},
+				},
 			},
 		},
 	}
@@ -170,24 +257,21 @@ func TestGetFiles(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			files, err := GetFiles(tc.config)
-			if err != nil {
-				if tc.err == nil {
-					st.Fatalf("failed to GetFiles: %s", err)
-				}
-
-				wantErr := tc.err
-				haveErr := err.(*klib.Error)
-
-				assert.Equal(st, wantErr.ID, haveErr.ID, "err.ID mismatch")
-				assert.Equal(st, wantErr.Status, haveErr.Status, "err.Status mismatch")
-				assert.Equal(st, wantErr.Code, haveErr.Code, "err.Code mismatch")
-				assert.Equal(st, wantErr.Path, haveErr.Path, "err.Path mismatch")
-
+			haveFiles, err := GetFiles(tc.config)
+			if klib.CheckTestError(st, err, tc.err) {
 				return
 			}
 
-			_ = files
+			wantFiles := tc.files
+
+			if assert.Equal(st, len(wantFiles), len(haveFiles), "Files length mismatch") {
+				for i := range wantFiles {
+					want := wantFiles[i]
+					have := haveFiles[i]
+
+					assert.Equal(st, want.dir, have.dir, "File[%d].dir mismatch", i)
+				}
+			}
 		})
 	}
 }
