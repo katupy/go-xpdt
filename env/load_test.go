@@ -127,43 +127,10 @@ func TestGetFiles(t *testing.T) {
 		err    *klib.Error
 	}{
 		{
-			name: "empty-env-load-dir",
-			config: &conf.Config{
-				Env: &conf.Env{
-					Load: &conf.EnvLoad{},
-				},
-			},
-			err: &klib.Error{
-				ID:     "3fce5cb0-9f08-4ab0-bfb2-7071aa85cdd5",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeMissingValue,
-				Path:   ".env.load.dir",
-			},
-		},
-		{
-			name: "empty-env-load-filename",
-			config: &conf.Config{
-				Env: &conf.Env{
-					Load: &conf.EnvLoad{
-						Dir: ".",
-					},
-				},
-			},
-			err: &klib.Error{
-				ID:     "99d44310-a1d8-4a8e-a00e-30ba4f3d10a9",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeMissingValue,
-				Path:   ".env.load.filename",
-			},
-		},
-		{
 			name: "empty-env-overwrite-dir",
 			config: &conf.Config{
 				Env: &conf.Env{
-					Load: &conf.EnvLoad{
-						Dir:      ".",
-						Filename: "-",
-					},
+					Load: &conf.EnvLoad{},
 					Overwrites: []*conf.EnvOverwrite{
 						{},
 					},
@@ -180,10 +147,7 @@ func TestGetFiles(t *testing.T) {
 			name: "non-absolute-env-overwrite-dir",
 			config: &conf.Config{
 				Env: &conf.Env{
-					Load: &conf.EnvLoad{
-						Dir:      ".",
-						Filename: "-",
-					},
+					Load: &conf.EnvLoad{},
 					Overwrites: []*conf.EnvOverwrite{
 						{
 							Dir: must.FilepathAbs("."),
@@ -205,10 +169,7 @@ func TestGetFiles(t *testing.T) {
 			name: "file-not-found",
 			config: &conf.Config{
 				Env: &conf.Env{
-					Load: &conf.EnvLoad{
-						Dir:      ".",
-						Filename: "-",
-					},
+					Load: &conf.EnvLoad{},
 					Overwrites: []*conf.EnvOverwrite{
 						{
 							Dir:  must.FilepathAbs("."),
@@ -245,8 +206,18 @@ func TestGetFiles(t *testing.T) {
 			config: &conf.Config{
 				Env: &conf.Env{
 					Load: &conf.EnvLoad{
-						Dir:      ".",
 						Filename: uuid.NewString(),
+					},
+				},
+			},
+		},
+		{
+			name: "single-root-file",
+			config: &conf.Config{
+				Env: &conf.Env{
+					Load: &conf.EnvLoad{
+						Dir:      "tests",
+						Filename: "single-root-file.yaml",
 					},
 				},
 			},

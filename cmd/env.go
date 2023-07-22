@@ -107,12 +107,12 @@ func initEnv() error {
 
 	envCmd.AddCommand(envHookCmd)
 
-	envLoadCmd.PersistentFlags().StringP("dir", "C", ".", "Change to directory before execution.")
+	envLoadCmd.PersistentFlags().StringP("dir", "C", conf.DefaultEnvLoadDir, "Change to directory before execution.")
 	if err := viper.BindPFlag("env.load.dir", envLoadCmd.PersistentFlags().Lookup("dir")); err != nil {
 		return fmt.Errorf("failed to bind env.load.dir flag: %w\n", err)
 	}
 
-	envLoadCmd.PersistentFlags().StringP("filename", "f", conf.DefaultEnvFilename, "Config filename.")
+	envLoadCmd.PersistentFlags().StringP("filename", "f", conf.DefaultEnvLoadFilename, "Config filename.")
 	if err := viper.BindPFlag("env.load.filename", envLoadCmd.PersistentFlags().Lookup("filename")); err != nil {
 		return fmt.Errorf("failed to bind env.load.filename flag: %w\n", err)
 	}

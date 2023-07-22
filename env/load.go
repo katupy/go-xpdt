@@ -109,13 +109,7 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 	loadDir := strings.TrimSpace(c.Env.Load.Dir)
 
 	if loadDir == "" {
-		return nil, &klib.Error{
-			ID:     "3fce5cb0-9f08-4ab0-bfb2-7071aa85cdd5",
-			Status: http.StatusBadRequest,
-			Code:   klib.CodeMissingValue,
-			Path:   ".env.load.dir",
-			Detail: "Missing config.env.load.dir",
-		}
+		loadDir = conf.DefaultEnvLoadDir
 	}
 
 	dir, err := filepath.Abs(loadDir)
@@ -126,13 +120,7 @@ func GetFiles(c *conf.Config) ([]*File, error) {
 	loadFilename := strings.TrimSpace(c.Env.Load.Filename)
 
 	if loadFilename == "" {
-		return nil, &klib.Error{
-			ID:     "99d44310-a1d8-4a8e-a00e-30ba4f3d10a9",
-			Status: http.StatusBadRequest,
-			Code:   klib.CodeMissingValue,
-			Path:   ".env.load.filename",
-			Detail: "Missing config.env.load.filename",
-		}
+		loadFilename = conf.DefaultEnvLoadFilename
 	}
 
 	// There might be multiple overwrites for the same directory.
