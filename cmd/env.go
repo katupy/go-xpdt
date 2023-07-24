@@ -91,7 +91,9 @@ var envLoadCmd = &cobra.Command{
 			return fmt.Errorf("failed to find config: %w", err)
 		}
 
-		if err := env.Load(config); err != nil {
+		loader := env.NewLoader(config)
+
+		if err := loader.Load(); err != nil {
 			return fmt.Errorf("failed to load env: %w", err)
 		}
 

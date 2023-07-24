@@ -18,6 +18,21 @@ type File struct {
 
 	Commands []*Command `toml:"commands,omitempty" yaml:"commands,omitempty"`
 
-	filepath string
 	dir      string
+	filepath string
+}
+
+type container struct {
+	oldEnv map[string]string
+	curEnv map[string]string
+
+	pathListElementExists map[string]map[string]bool
+	pathListElements      map[string][]string
+	pathListExists        map[string]bool
+}
+
+func (c *container) resetPaths() {
+	c.pathListElementExists = make(map[string]map[string]bool)
+	c.pathListElements = make(map[string][]string)
+	c.pathListExists = make(map[string]bool)
 }

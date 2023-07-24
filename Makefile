@@ -6,3 +6,7 @@ build/xpdt: $(shell find . -type f -name "*.go")
 
 go/test:
 	$(GO) test -count=1 ./...
+
+.PHONY: mocks
+mocks:
+	mockery

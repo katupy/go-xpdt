@@ -21,9 +21,13 @@ const EnvPrefix = "XPDT"
 const EnvConfigPath = EnvPrefix + "_CONFIG_PATH"
 
 type Config struct {
-	Env        *Env   `toml:"env,omitempty" yaml:"env,omitempty"`
+	Env *Env `toml:"env,omitempty" yaml:"env,omitempty"`
+
 	LogLevel   string `toml:"logLevel,omitempty" yaml:"logLevel,omitempty"`
 	NoLogColor bool   `toml:"noLogColor,omitempty" yaml:"noLogColor,omitempty"`
+
+	CaseInsensitiveEnvironment bool `toml:"caseInsensitiveEnvironment,omitempty" yaml:"caseInsensitiveEnvironment,omitempty"`
+	CaseSensitiveFilesystem    bool `toml:"caseSensitiveFilesystem,omitempty" yaml:"caseSensitiveFilesystem,omitempty"`
 
 	// Where to write common outputs and logs to.
 	Outw io.Writer `toml:"-" yaml:"-"`
