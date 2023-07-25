@@ -117,7 +117,7 @@ func TestGetEnviron(t *testing.T) {
 
 			if assert.Equal(st, len(want), len(have), "Length mismatch") {
 				for k := range want {
-					assert.Equal(st, want[k], have[k], "Value[%s] mismatch", k)
+					assert.Equal(st, want[k], have[k], "Value[%q] mismatch", k)
 				}
 			}
 		})
@@ -445,10 +445,9 @@ func TestLoader_GenTemplateFunc(t *testing.T) {
 		{
 			name: "expandenv-ignorecase",
 			loader: &Loader{
-				config: &conf.Config{
-					CaseInsensitiveEnvironment: true,
-				},
+				config: &conf.Config{},
 				container: &container{
+					caseInsensitiveEnvironment: true,
 					curEnv: map[string]string{
 						"BAR": "FOO",
 					},

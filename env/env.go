@@ -11,6 +11,9 @@ type Command struct {
 	Platform string `toml:"platform,omitempty" yaml:"platform,omitempty"`
 	URI      string `toml:"uri,omitempty" yaml:"uri,omitempty"`
 	Append   bool   `toml:"append,omitempty" yaml:"append,omitempty"`
+
+	file  *File
+	index int
 }
 
 type File struct {
@@ -23,8 +26,11 @@ type File struct {
 }
 
 type container struct {
+	caseInsensitiveEnvironment bool
+
 	oldEnv map[string]string
 	curEnv map[string]string
+	delEnv map[string]bool
 
 	pathListElementExists map[string]map[string]bool
 	pathListElements      map[string][]string

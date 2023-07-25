@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
 	"go.katupy.io/klib/must"
-
-	"go.katupy.io/xpdt/mocks/mock_env"
 )
 
 func Test_defaultPathHandler_Add(t *testing.T) {
@@ -294,14 +292,14 @@ func Test_defaultPathLoader_Load(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
 			if len(tc.mockPathHandlerOn) > 0 {
-				mockPathHandler := mock_env.NewMockPathHandler(st)
+				mockPathHandler := NewMockPathHandler(st)
 
 				for j := range tc.mockPathHandlerOn {
 					on := tc.mockPathHandlerOn[j]
 					mockPathHandler.On(on[0].(string), on[1], on[2], on[3]).Return(on[4])
 				}
 
-				tc.pathLoader.handler = mockPathHandler
+				tc.pathLoader.pathHandler = mockPathHandler
 			}
 
 			err := tc.pathLoader.Load(tc.key)

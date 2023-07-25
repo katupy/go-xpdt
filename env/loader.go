@@ -18,15 +18,12 @@ import (
 )
 
 type Loader struct {
-	config *conf.Config
-
-	platform string
-
-	files []*File
-
+	config    *conf.Config
+	files     []*File
 	container *container
 
 	templateHandler klib.StringHandler
+	fileLoader      FileLoader
 }
 
 func NewLoader(config *conf.Config) *Loader {
@@ -92,12 +89,12 @@ func (l *Loader) Load() error {
 		l.config.CaseInsensitiveEnvironment = runtime.GOOS == "windows"
 	}
 
-	l.platform = runtime.GOOS + "_" + runtime.GOARCH
-
-	c := new(container)
+	c := &container{
+		caseInsensitiveEnvironment: l.config.CaseInsensitiveEnvironment,
+	}
 
 	// The starting (static) env.
-	c.oldEnv = GetEnviron(l.config.Env.Load.Environ, l.config.CaseInsensitiveEnvironment)
+	c.oldEnv = GetEnviron(l.config.Env.Load.Environ, c.caseInsensitiveEnvironment)
 
 	// The current (modifiable) env.
 	// It starts as a copy of the old env.
@@ -107,18 +104,52 @@ func (l *Loader) Load() error {
 		c.curEnv[k] = v
 	}
 
+	c.delEnv = make(map[string]bool)
+	c.resetPaths()
+
+	pathHandler := &defaultPathHandler{
+		caseSensitiveFilesystem: l.config.CaseSensitiveFilesystem,
+		container:               c,
+	}
+
+	pathLoader := &defaultPathLoader{
+		container:   c,
+		pathHandler: pathHandler,
+	}
+
+	platform := runtime.GOOS + "_" + runtime.GOARCH
 	data := map[string]any{
-		"_PLATFORM": l.platform,
+		"_PLATFORM": platform,
 	}
 
 	l.genTemplateHandler(data)
-	c.resetPaths()
+
+	l.fileLoader = &defaultFileLoader{
+		commandLoader: &defaultCommandLoader{
+			platform: platform,
+			commandMethods: &defaultCommandMethods{
+				pathHandler:     pathHandler,
+				pathLoader:      pathLoader,
+				templateHandler: l.templateHandler,
+			},
+		},
+	}
 
 	for i := len(l.files) - 1; i >= 0; i-- {
-		if err := l.LoadFile(i); err != nil {
+		file := l.files[i]
+
+		if err := l.fileLoader.Load(file); err != nil {
 			return klib.ForwardError("2fbe24dd-bc10-403f-b777-f3dd7898c8f4", err)
 		}
 	}
+
+	// MERGE PATHS
+
+	// Calculate diff
+
+	// Calculate REVERSE
+
+	// PRINT DIFF COMMANDS
 
 	logDuration()
 
@@ -340,7 +371,7 @@ func (l *Loader) genTemplateHandler(data map[string]any) {
 	funcMap := klib.BaseFuncMap()
 
 	getEnv := func(k string) string {
-		if l.config.CaseInsensitiveEnvironment {
+		if l.container.caseInsensitiveEnvironment {
 			return l.container.curEnv[strings.ToUpper(k)]
 		}
 		return l.container.curEnv[k]
@@ -358,105 +389,4 @@ func (l *Loader) genTemplateHandler(data map[string]any) {
 		data:    data,
 		funcMap: funcMap,
 	}
-}
-
-func (l *Loader) LoadFile(index int) error {
-	file := l.files[index]
-
-	if err := os.Chdir(file.dir); err != nil {
-		return &klib.Error{
-			ID:     "869494ce-40c2-43f5-a5ef-a5a5d3b6201f",
-			Status: http.StatusInternalServerError,
-			Code:   klib.CodeFilesystemError,
-			Title:  "Failed to change directory",
-			Cause:  err.Error(),
-			Meta: map[string]any{
-				"dir": file.dir,
-			},
-		}
-	}
-
-	for i := range file.Commands {
-		if err := l.LoadCommand(index, i); err != nil {
-			return klib.ForwardError("f1b51039-fc62-4f06-b9c6-965a1b7dcc66", err)
-		}
-	}
-
-	return nil
-}
-
-func (l *Loader) LoadCommand(fileIndex, cmdIndex int) error {
-	file := l.files[fileIndex]
-	cmd := file.Commands[cmdIndex]
-
-	if cmd.Platform != "" && cmd.Platform != l.platform {
-		// log.Debug().
-		// 	Int("index", ).
-		// 	Str("value", cmd.Platform).
-		// 	Msg("Skipping platform.")
-
-		return nil
-	}
-
-	var cmdFunc func(int, int) error
-
-	switch {
-	case cmd.Add != "":
-		cmdFunc = l.cmdAdd
-	case cmd.Set != "":
-	case cmd.Del != "":
-	}
-
-	if err := cmdFunc(fileIndex, cmdIndex); err != nil {
-		return klib.ForwardError("c2ebf96d-8171-4d4b-8853-eb4cf48d7c7f", err)
-	}
-
-	return nil
-}
-
-func (l *Loader) cmdAdd(fileIndex, cmdIndex int) error {
-	file := l.files[fileIndex]
-	cmd := file.Commands[cmdIndex]
-
-	var values []string
-
-	switch {
-	case cmd.Value != "":
-		value, err := l.templateHandler.Handle(cmd.Value)
-		if err != nil {
-			return &klib.Error{
-				ID:     "59da8085-4cc7-4767-838f-11d8ccb6bae5",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeExecutionError,
-				Path:   fmt.Sprintf("file[%d].commands[%d].value", fileIndex, cmdIndex),
-				Title:  "Missing value",
-			}
-		}
-
-		values = []string{value}
-	default:
-		return &klib.Error{
-			ID:     "ce66adb8-2e56-40b7-8268-27a8955296b5",
-			Status: http.StatusBadRequest,
-			Code:   klib.CodeMissingValue,
-			Path:   fmt.Sprintf("file[%d].commands[%d]", fileIndex, cmdIndex),
-			Title:  "Missing value",
-		}
-	}
-
-	_ = values
-
-	// key := cmd.Add
-
-	// if err := l.loadPath(key); err != nil {
-	// 	return klib.ForwardError("bfb999a7-55af-47ab-a8b3-bc15be757c48", err)
-	// }
-
-	// for i := range values {
-	// 	if err := l.addPath(key, values[i], cmd.Append); err != nil {
-	// 		return klib.ForwardError("4aa49cf3-1289-403a-bbb2-b25d6ad84a4c", err)
-	// 	}
-	// }
-
-	return nil
 }

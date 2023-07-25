@@ -20,7 +20,7 @@ type defaultPathHandler struct {
 	container *container
 }
 
-func (h *defaultPathHandler) Add(key, value string, position int) error {
+func (h *defaultPathHandler) Add(key, value string, index int) error {
 	cleanValue := filepath.Clean(strings.TrimSpace(value))
 	compareValue := cleanValue
 
@@ -59,7 +59,7 @@ func (h *defaultPathHandler) Add(key, value string, position int) error {
 	h.container.pathListElements[key], err = klib.InsertSliceElem(
 		h.container.pathListElements[key],
 		cleanValue,
-		position,
+		index,
 	)
 	if err != nil {
 		return klib.ForwardError("570e1095-1818-45f7-aaa8-97b53fa224e3", err)
@@ -75,7 +75,7 @@ type PathLoader interface {
 type defaultPathLoader struct {
 	container *container
 
-	handler PathHandler
+	pathHandler PathHandler
 }
 
 func (l *defaultPathLoader) Load(key string) error {
@@ -100,7 +100,7 @@ func (l *defaultPathLoader) Load(key string) error {
 			continue
 		}
 
-		if err := l.handler.Add(key, element, -1); err != nil {
+		if err := l.pathHandler.Add(key, element, -1); err != nil {
 			return klib.ForwardError("b3bf3b89-656b-4882-bdb7-b773d708ea64", err)
 		}
 	}
