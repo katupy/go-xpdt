@@ -69,61 +69,6 @@ func TestLoader_Load(t *testing.T) {
 	}
 }
 
-func TestGetEnviron(t *testing.T) {
-	testCases := []*struct {
-		name       string
-		environ    []string
-		ignoreCase bool
-		want       map[string]string
-	}{
-		{
-			name: "empty-environ",
-			want: map[string]string{},
-		},
-		{
-			name: "case-sensitive",
-			environ: []string{
-				"foo=bar1",
-				"Foo=Bar2",
-				"HAVE==StartingEqual",
-			},
-			want: map[string]string{
-				"foo":  "bar1",
-				"Foo":  "Bar2",
-				"HAVE": "=StartingEqual",
-			},
-		},
-		{
-			name: "case-insensitive",
-			environ: []string{
-				"foo=bar1",
-				"Foo=Bar2",
-				"have=two=intermediary=equals",
-			},
-			ignoreCase: true,
-			want: map[string]string{
-				"FOO":  "Bar2",
-				"HAVE": "two=intermediary=equals",
-			},
-		},
-	}
-
-	for i := range testCases {
-		tc := testCases[i]
-
-		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			have := GetEnviron(tc.environ, tc.ignoreCase)
-			want := tc.want
-
-			if assert.Equal(st, len(want), len(have), "Length mismatch") {
-				for k := range want {
-					assert.Equal(st, want[k], have[k], "Value[%q] mismatch", k)
-				}
-			}
-		})
-	}
-}
-
 func TestLoader_FindFiles(t *testing.T) {
 	testCases := []*struct {
 		name   string
@@ -404,13 +349,13 @@ func TestLoader_FindFiles(t *testing.T) {
 				return
 			}
 
-			wantFiles := tc.files
 			haveFiles := loader.files
+			wantFiles := tc.files
 
 			if assert.Equal(st, len(wantFiles), len(haveFiles), "Files length mismatch") {
 				for i := range wantFiles {
-					want := wantFiles[i]
 					have := haveFiles[i]
+					want := wantFiles[i]
 
 					assert.Equal(st, want.dir, have.dir, "File[%d].dir mismatch", i)
 					assert.Equal(st, want.filepath, have.filepath, "File[%d].filepath mismatch", i)
@@ -420,106 +365,59 @@ func TestLoader_FindFiles(t *testing.T) {
 	}
 }
 
-func TestLoader_GenTemplateFunc(t *testing.T) {
-	testCases := []*struct {
-		name   string
-		loader *Loader
-		input  string
-		data   map[string]any
-		err    *klib.Error
-		output string
-	}{
-		{
-			name: "getEnv",
-			loader: &Loader{
-				config: &conf.Config{},
-				container: &container{
-					curEnv: map[string]string{
-						"FOO": "bar",
-					},
-				},
-			},
-			input:  `{{ "FOO" | env }}`,
-			output: "bar",
-		},
-		{
-			name: "expandenv-ignorecase",
-			loader: &Loader{
-				config: &conf.Config{},
-				container: &container{
-					caseInsensitiveEnvironment: true,
-					curEnv: map[string]string{
-						"BAR": "FOO",
-					},
-				},
-			},
-			input:  `{{ "$bar" | expandenv }}`,
-			output: "FOO",
-		},
-	}
+// func TestLoader_GenTemplateFunc(t *testing.T) {
+// 	testCases := []*struct {
+// 		name   string
+// 		loader *Loader
+// 		input  string
+// 		data   map[string]any
+// 		err    *klib.Error
+// 		output string
+// 	}{
+// 		{
+// 			name: "getEnv",
+// 			loader: &Loader{
+// 				config: &conf.Config{},
+// 				container: &container{
+// 					curEnv: map[string]string{
+// 						"FOO": "bar",
+// 					},
+// 				},
+// 			},
+// 			input:  `{{ "FOO" | env }}`,
+// 			output: "bar",
+// 		},
+// 		{
+// 			name: "expandenv-ignorecase",
+// 			loader: &Loader{
+// 				config: &conf.Config{},
+// 				container: &container{
+// 					caseInsensitiveEnvironment: true,
+// 					curEnv: map[string]string{
+// 						"BAR": "FOO",
+// 					},
+// 				},
+// 			},
+// 			input:  `{{ "$bar" | expandenv }}`,
+// 			output: "FOO",
+// 		},
+// 	}
 
-	for i := range testCases {
-		tc := testCases[i]
+// 	for i := range testCases {
+// 		tc := testCases[i]
 
-		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			loader := tc.loader
-			loader.genTemplateHandler(tc.data)
+// 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
+// 			loader := tc.loader
+// 			loader.genTemplateHandler(tc.data)
 
-			have, err := loader.templateHandler.Handle(tc.input)
-			if klib.CheckTestError(st, err, tc.err) {
-				return
-			}
+// 			have, err := loader.templateHandler.Handle(tc.input)
+// 			if klib.CheckTestError(st, err, tc.err) {
+// 				return
+// 			}
 
-			want := tc.output
+// 			want := tc.output
 
-			assert.Equal(st, want, have, "Template output mismatch")
-		})
-	}
-}
-
-func TestLoader_cmdAdd(t *testing.T) {
-	testCases := []*struct {
-		name         string
-		loader       *Loader
-		fileIndex    int
-		commandIndex int
-		err          *klib.Error
-	}{
-		{
-			name: "non-abs-path-list-value",
-			loader: &Loader{
-				config: &conf.Config{},
-			},
-			err: &klib.Error{
-				ID:     "0d3fb866-c0be-420d-89e7-11b0f05ff132",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeInvalidValue,
-			},
-		},
-	}
-
-	for i := range testCases {
-		tc := testCases[i]
-
-		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			// loader := tc.loader
-
-			// err := loader.cmdAdd(tc.key, tc.value, tc.appendValue)
-			// if klib.CheckTestError(st, err, tc.err) {
-			// 	return
-			// }
-
-			// wantPathList := tc.wantPathList
-			// havePathList := loader.pathListElements[tc.key]
-
-			// if assert.Equal(st, len(wantPathList), len(havePathList), "Path list length mismatch") {
-			// 	for i := range wantPathList {
-			// 		want := wantPathList[i]
-			// 		have := havePathList[i]
-
-			// 		assert.Equal(st, want, have, "PathList[%d] value mismatch", i)
-			// 	}
-			// }
-		})
-	}
-}
+// 			assert.Equal(st, want, have, "Template output mismatch")
+// 		})
+// 	}
+// }

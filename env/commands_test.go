@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
 	"go.katupy.io/klib/mocks/mock_klib"
+	"go.katupy.io/klib/mucache"
 )
 
 func Test_defaultCommandLoader_Load(t *testing.T) {
@@ -84,6 +85,8 @@ func Test_defaultCommandLoader_Load(t *testing.T) {
 }
 
 func Test_defaultCommandMethods_Add(t *testing.T) {
+	cache := mucache.New[string, *environVar]()
+
 	testCases := []*struct {
 		name                  string
 		cmd                   *Command
@@ -93,6 +96,7 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 		mockPathLoaderOn      []any
 		mockPathHandlerOn     [][]any
 		err                   *klib.Error
+		wantCreated           bool
 	}{
 		{
 			name:           "missing-value",
@@ -114,15 +118,21 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			compareKey: "foo",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					delEnv: map[string]bool{
-						"foo": true,
+					env: map[string]*environVar{
+						"foo": cache.SetGet(
+							"append-and-undelete",
+							&environVar{
+								currentValue: "?",
+								delete:       true,
+							},
+						),
 					},
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "=", "OK", nil},
-			mockPathLoaderOn:      []any{"Load", "foo", nil},
+			mockPathLoaderOn:      []any{"Load", cache.Get("append-and-undelete"), nil},
 			mockPathHandlerOn: [][]any{
-				{"Add", "foo", "OK", -1, nil},
+				{"Add", cache.Get("append-and-undelete"), "OK", -1, nil},
 			},
 		},
 		{
@@ -133,12 +143,21 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			},
 			compareKey: "bar",
 			commandMethods: &defaultCommandMethods{
-				container: &container{},
+				container: &container{
+					env: map[string]*environVar{
+						"bar": cache.SetGet(
+							"prepend",
+							&environVar{
+								currentValue: "?",
+							},
+						),
+					},
+				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "@", "Done", nil},
-			mockPathLoaderOn:      []any{"Load", "bar", nil},
+			mockPathLoaderOn:      []any{"Load", cache.Get("prepend"), nil},
 			mockPathHandlerOn: [][]any{
-				{"Add", "bar", "Done", 0, nil},
+				{"Add", cache.Get("prepend"), "Done", 0, nil},
 			},
 		},
 		{
@@ -151,15 +170,21 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					caseInsensitiveEnvironment: true,
-					delEnv: map[string]bool{
-						"BAR": true,
+					env: map[string]*environVar{
+						"BAR": cache.SetGet(
+							"prepend-case-insensitive",
+							&environVar{
+								currentValue: "?",
+								delete:       true,
+							},
+						),
 					},
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "@", "Done", nil},
-			mockPathLoaderOn:      []any{"Load", "BAR", nil},
+			mockPathLoaderOn:      []any{"Load", cache.Get("prepend-case-insensitive"), nil},
 			mockPathHandlerOn: [][]any{
-				{"Add", "BAR", "Done", 0, nil},
+				{"Add", cache.Get("prepend-case-insensitive"), "Done", 0, nil},
 			},
 		},
 	}
@@ -196,7 +221,7 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 				return
 			}
 
-			assert.False(st, tc.commandMethods.container.delEnv[tc.compareKey], "Key should not be deleted")
+			assert.False(st, tc.commandMethods.container.env[tc.compareKey].delete, "Key should not be deleted")
 		})
 	}
 }
@@ -211,7 +236,7 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 		err                   *klib.Error
 	}{
 		{
-			name: "create-and-undelete",
+			name: "create",
 			cmd: &Command{
 				Set:   "foo",
 				Value: "bar",
@@ -219,10 +244,7 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 			compareKey: "foo",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					curEnv: map[string]string{},
-					delEnv: map[string]bool{
-						"foo": true,
-					},
+					env: map[string]*environVar{},
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "bar", "barOK", nil},
@@ -236,16 +258,17 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 			compareKey: "foo",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					curEnv: map[string]string{
-						"foo": "-",
+					env: map[string]*environVar{
+						"foo": {
+							currentValue: "-",
+						},
 					},
-					delEnv: map[string]bool{},
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "bar", "barOK", nil},
 		},
 		{
-			name: "overwrite-case-insensitive",
+			name: "overwrite-case-insensitive-and-undelete",
 			cmd: &Command{
 				Set:   "foo",
 				Value: "bar",
@@ -254,11 +277,11 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					caseInsensitiveEnvironment: true,
-					curEnv: map[string]string{
-						"FOO": "-",
-					},
-					delEnv: map[string]bool{
-						"FOO": true,
+					env: map[string]*environVar{
+						"FOO": {
+							currentValue: "-",
+							delete:       true,
+						},
 					},
 				},
 			},
@@ -284,11 +307,11 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				return
 			}
 
+			have := tc.commandMethods.container.env[tc.compareKey].currentValue
 			want := tc.cmd.Value + "OK"
-			have := tc.commandMethods.container.curEnv[tc.compareKey]
 
 			assert.Equal(st, want, have, "Value mismatch")
-			assert.False(st, tc.commandMethods.container.delEnv[tc.compareKey], "Key should not be deleted")
+			assert.False(st, tc.commandMethods.container.env[tc.compareKey].delete, "Key should not be deleted")
 		})
 	}
 }
@@ -299,15 +322,11 @@ func Test_defaultCommandMethods_Del(t *testing.T) {
 	keyC := strings.Join([]string{"700,800,900"}, string(os.PathListSeparator))
 
 	testCases := []*struct {
-		name                      string
-		cmd                       *Command
-		commandMethods            *defaultCommandMethods
-		err                       *klib.Error
-		wantCurEnv                map[string]string
-		wantDelEnv                map[string]bool
-		wantPathListExists        map[string]bool
-		wantPathListElements      map[string][]string
-		wantPathListElementExists map[string]map[string]bool
+		name           string
+		cmd            *Command
+		commandMethods *defaultCommandMethods
+		err            *klib.Error
+		wantEnv        map[string]*environVar
 	}{
 		{
 			name: "non-existing-key",
@@ -317,74 +336,84 @@ func Test_defaultCommandMethods_Del(t *testing.T) {
 			},
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					curEnv: map[string]string{
-						"a": keyA,
-						"b": keyB,
-						"c": keyC,
-						"d": "4",
-					},
-					delEnv: map[string]bool{},
-					pathListExists: map[string]bool{
-						"a": true,
-						"b": true,
-						"c": true,
-					},
-					pathListElements: map[string][]string{
-						"a": {"1", "2", "3"},
-						"b": {"40", "50", "60"},
-						"c": {"700", "800", "900"},
-					},
-					pathListElementExists: map[string]map[string]bool{
+					env: map[string]*environVar{
 						"a": {
-							"1": true,
-							"2": true,
-							"3": true,
+							originalValue:    "keyA",
+							currentValue:     keyA,
+							pathList:         true,
+							pathListElements: []string{"1", "2", "3"},
+							pathListElementExists: map[string]bool{
+								"1": true,
+								"2": true,
+								"3": true,
+							},
 						},
 						"b": {
-							"40": true,
-							"50": true,
-							"60": true,
+							originalValue:    "keyB",
+							currentValue:     keyB,
+							pathList:         true,
+							pathListElements: []string{"40", "50", "60"},
+							pathListElementExists: map[string]bool{
+								"40": true,
+								"50": true,
+								"60": true,
+							},
 						},
 						"c": {
-							"700": true,
-							"800": true,
-							"900": true,
+							originalValue:    "keyC",
+							currentValue:     keyC,
+							pathList:         true,
+							pathListElements: []string{"700", "800", "900"},
+							pathListElementExists: map[string]bool{
+								"700": true,
+								"800": true,
+								"900": true,
+							},
+						},
+						"d": {
+							originalValue: "keyD",
+							currentValue:  "4",
 						},
 					},
 				},
 			},
-			wantCurEnv: map[string]string{
-				"a": keyA,
-				"b": keyB,
-				"c": keyC,
-				"d": "4",
-			},
-			wantDelEnv: map[string]bool{},
-			wantPathListExists: map[string]bool{
-				"a": true,
-				"b": true,
-				"c": true,
-			},
-			wantPathListElements: map[string][]string{
-				"a": {"1", "2", "3"},
-				"b": {"40", "50", "60"},
-				"c": {"700", "800", "900"},
-			},
-			wantPathListElementExists: map[string]map[string]bool{
+			wantEnv: map[string]*environVar{
 				"a": {
-					"1": true,
-					"2": true,
-					"3": true,
+					originalValue:    "keyA",
+					currentValue:     keyA,
+					pathList:         true,
+					pathListElements: []string{"1", "2", "3"},
+					pathListElementExists: map[string]bool{
+						"1": true,
+						"2": true,
+						"3": true,
+					},
 				},
 				"b": {
-					"40": true,
-					"50": true,
-					"60": true,
+					originalValue:    "keyB",
+					currentValue:     keyB,
+					pathList:         true,
+					pathListElements: []string{"40", "50", "60"},
+					pathListElementExists: map[string]bool{
+						"40": true,
+						"50": true,
+						"60": true,
+					},
 				},
 				"c": {
-					"700": true,
-					"800": true,
-					"900": true,
+					originalValue:    "keyC",
+					currentValue:     keyC,
+					pathList:         true,
+					pathListElements: []string{"700", "800", "900"},
+					pathListElementExists: map[string]bool{
+						"700": true,
+						"800": true,
+						"900": true,
+					},
+				},
+				"d": {
+					originalValue: "keyD",
+					currentValue:  "4",
 				},
 			},
 		},
@@ -395,68 +424,78 @@ func Test_defaultCommandMethods_Del(t *testing.T) {
 			},
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					curEnv: map[string]string{
-						"a": keyA,
-						"b": keyB,
-						"c": keyC,
-						"d": "4",
-					},
-					delEnv: map[string]bool{},
-					pathListExists: map[string]bool{
-						"a": true,
-						"b": true,
-						"c": true,
-					},
-					pathListElements: map[string][]string{
-						"a": {"1", "2", "3"},
-						"b": {"40", "50", "60"},
-						"c": {"700", "800", "900"},
-					},
-					pathListElementExists: map[string]map[string]bool{
+					env: map[string]*environVar{
 						"a": {
-							"1": true,
-							"2": true,
-							"3": true,
+							originalValue:    "keyA",
+							currentValue:     keyA,
+							pathList:         true,
+							pathListElements: []string{"1", "2", "3"},
+							pathListElementExists: map[string]bool{
+								"1": true,
+								"2": true,
+								"3": true,
+							},
 						},
 						"b": {
-							"40": true,
-							"50": true,
-							"60": true,
+							originalValue:    "keyB",
+							currentValue:     keyB,
+							pathList:         true,
+							pathListElements: []string{"40", "50", "60"},
+							pathListElementExists: map[string]bool{
+								"40": true,
+								"50": true,
+								"60": true,
+							},
 						},
 						"c": {
-							"700": true,
-							"800": true,
-							"900": true,
+							originalValue:    "keyC",
+							currentValue:     keyC,
+							pathList:         true,
+							pathListElements: []string{"700", "800", "900"},
+							pathListElementExists: map[string]bool{
+								"700": true,
+								"800": true,
+								"900": true,
+							},
+						},
+						"d": {
+							originalValue: "keyD",
+							currentValue:  "4",
 						},
 					},
 				},
 			},
-			wantCurEnv: map[string]string{
-				"a": keyA,
-				"b": keyB,
-				"d": "4",
-			},
-			wantDelEnv: map[string]bool{
-				"c": true,
-			},
-			wantPathListExists: map[string]bool{
-				"a": true,
-				"b": true,
-			},
-			wantPathListElements: map[string][]string{
-				"a": {"1", "2", "3"},
-				"b": {"40", "50", "60"},
-			},
-			wantPathListElementExists: map[string]map[string]bool{
+			wantEnv: map[string]*environVar{
 				"a": {
-					"1": true,
-					"2": true,
-					"3": true,
+					originalValue:    "keyA",
+					currentValue:     keyA,
+					pathList:         true,
+					pathListElements: []string{"1", "2", "3"},
+					pathListElementExists: map[string]bool{
+						"1": true,
+						"2": true,
+						"3": true,
+					},
 				},
 				"b": {
-					"40": true,
-					"50": true,
-					"60": true,
+					originalValue:    "keyB",
+					currentValue:     keyB,
+					pathList:         true,
+					pathListElements: []string{"40", "50", "60"},
+					pathListElementExists: map[string]bool{
+						"40": true,
+						"50": true,
+						"60": true,
+					},
+				},
+				"c": {
+					originalValue: "keyC",
+					currentValue:  "",
+					delete:        true,
+				},
+				"d": {
+					originalValue: "keyD",
+					currentValue:  "4",
 				},
 			},
 		},
@@ -467,52 +506,71 @@ func Test_defaultCommandMethods_Del(t *testing.T) {
 			},
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					curEnv: map[string]string{
-						"a": keyA,
-						"b": keyB,
-						"c": keyC,
-						"d": "4",
-					},
-					delEnv: map[string]bool{},
-					pathListExists: map[string]bool{
-						"a": true,
-						"b": true,
-						"c": true,
-					},
-					pathListElements: map[string][]string{
-						"a": {"1", "2", "3"},
-						"b": {"40", "50", "60"},
-						"c": {"700", "800", "900"},
-					},
-					pathListElementExists: map[string]map[string]bool{
+					env: map[string]*environVar{
 						"a": {
-							"1": true,
-							"2": true,
-							"3": true,
+							originalValue:    "keyA",
+							currentValue:     keyA,
+							pathList:         true,
+							pathListElements: []string{"1", "2", "3"},
+							pathListElementExists: map[string]bool{
+								"1": true,
+								"2": true,
+								"3": true,
+							},
 						},
 						"b": {
-							"40": true,
-							"50": true,
-							"60": true,
+							originalValue:    "keyB",
+							currentValue:     keyB,
+							pathList:         true,
+							pathListElements: []string{"40", "50", "60"},
+							pathListElementExists: map[string]bool{
+								"40": true,
+								"50": true,
+								"60": true,
+							},
+							reversal: true,
 						},
 						"c": {
-							"700": true,
-							"800": true,
-							"900": true,
+							originalValue:    "keyC",
+							currentValue:     keyC,
+							pathList:         true,
+							pathListElements: []string{"700", "800", "900"},
+							pathListElementExists: map[string]bool{
+								"700": true,
+								"800": true,
+								"900": true,
+							},
+						},
+						"d": {
+							originalValue: "keyD",
+							currentValue:  "4",
 						},
 					},
 				},
 			},
-			wantCurEnv: map[string]string{},
-			wantDelEnv: map[string]bool{
-				"a": true,
-				"b": true,
-				"c": true,
-				"d": true,
+			wantEnv: map[string]*environVar{
+				"a": {
+					originalValue: "keyA",
+					currentValue:  "",
+					delete:        true,
+				},
+				"b": {
+					originalValue: "keyB",
+					currentValue:  "",
+					delete:        true,
+					reversal:      true,
+				},
+				"c": {
+					originalValue: "keyC",
+					currentValue:  "",
+					delete:        true,
+				},
+				"d": {
+					originalValue: "keyD",
+					currentValue:  "",
+					delete:        true,
+				},
 			},
-			wantPathListExists:        map[string]bool{},
-			wantPathListElements:      map[string][]string{},
-			wantPathListElementExists: map[string]map[string]bool{},
 		},
 	}
 
@@ -525,63 +583,15 @@ func Test_defaultCommandMethods_Del(t *testing.T) {
 				return
 			}
 
-			wantCurEnv := tc.wantCurEnv
-			haveCurEnv := tc.commandMethods.container.curEnv
+			haveEnv := tc.commandMethods.container.env
+			wantEnv := tc.wantEnv
 
-			if assert.Equal(st, len(wantCurEnv), len(haveCurEnv), "CurEnv length mismatch") {
-				for key := range wantCurEnv {
-					want := wantCurEnv[key]
-					have := haveCurEnv[key]
+			if assert.Equal(st, len(wantEnv), len(haveEnv), "Env length mismatch") {
+				for key := range wantEnv {
+					have := haveEnv[key]
+					want := wantEnv[key]
 
-					assert.Equal(st, want, have, "CurEnv[%q] value mismatch", key)
-				}
-			}
-
-			wantDelEnv := tc.wantDelEnv
-			haveDelEnv := tc.commandMethods.container.delEnv
-
-			if assert.Equal(st, len(wantDelEnv), len(haveDelEnv), "DelEnv length mismatch") {
-				for key := range wantDelEnv {
-					want := wantDelEnv[key]
-					have := haveDelEnv[key]
-
-					assert.Equal(st, want, have, "DelEnv[%q] value mismatch", key)
-				}
-			}
-
-			wantPathListExists := tc.wantPathListExists
-			havePathListExists := tc.commandMethods.container.pathListExists
-
-			if assert.Equal(st, len(wantPathListExists), len(havePathListExists), "PathListExists length mismatch") {
-				for key := range wantPathListExists {
-					want := wantPathListExists[key]
-					have := havePathListExists[key]
-
-					assert.Equal(st, want, have, "PathListExists[%q] value mismatch", key)
-				}
-			}
-
-			wantPathListElements := tc.wantPathListElements
-			havePathListElements := tc.commandMethods.container.pathListElements
-
-			if assert.Equal(st, len(wantPathListElements), len(havePathListElements), "PathListElements length mismatch") {
-				for key := range wantPathListElements {
-					want := wantPathListElements[key]
-					have := havePathListElements[key]
-
-					assert.Equal(st, want, have, "PathListElements[%q] value mismatch", key)
-				}
-			}
-
-			wantPathListElementExists := tc.wantPathListElementExists
-			havePathListElementExists := tc.commandMethods.container.pathListElementExists
-
-			if assert.Equal(st, len(wantPathListElementExists), len(havePathListElementExists), "PathListElementExists length mismatch") {
-				for key := range wantPathListElementExists {
-					want := wantPathListElementExists[key]
-					have := havePathListElementExists[key]
-
-					assert.Equal(st, want, have, "PathListElementExists[%q] value mismatch", key)
+					assert.Equal(st, want, have, "Env[%q] value mismatch", key)
 				}
 			}
 		})

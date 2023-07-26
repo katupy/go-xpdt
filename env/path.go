@@ -11,17 +11,29 @@ import (
 )
 
 type PathHandler interface {
-	Add(key, value string, position int) error
+	Add(envVar *environVar, value string, position int) error
 }
 
 type defaultPathHandler struct {
 	caseSensitiveFilesystem bool
-
-	container *container
 }
 
-func (h *defaultPathHandler) Add(key, value string, index int) error {
-	cleanValue := filepath.Clean(strings.TrimSpace(value))
+func (h *defaultPathHandler) Add(envVar *environVar, value string, index int) error {
+	cleanValue, err := filepath.Abs(strings.TrimSpace(value))
+	if err != nil {
+		return &klib.Error{
+			ID:     "0d3fb866-c0be-420d-89e7-11b0f05ff132",
+			Status: http.StatusInternalServerError,
+			Code:   klib.CodeFilesystemError,
+			Detail: fmt.Sprintf("Failed to calculate absolute path value for key %s: %s.", envVar.key, value),
+			Cause:  err.Error(),
+			Meta: map[string]any{
+				"key":   envVar.key,
+				"value": value,
+			},
+		}
+	}
+
 	compareValue := cleanValue
 
 	// On case-insensitive filesystems, prevent duplicate paths with different casing.
@@ -29,35 +41,19 @@ func (h *defaultPathHandler) Add(key, value string, index int) error {
 		compareValue = strings.ToUpper(cleanValue)
 	}
 
-	if h.container.pathListElementExists[key] == nil {
-		h.container.pathListElementExists[key] = make(map[string]bool)
+	if envVar.pathListElementExists == nil {
+		envVar.pathListElementExists = make(map[string]bool)
 	}
 
 	// The provided path is already in the list.
-	if h.container.pathListElementExists[key][compareValue] {
+	if envVar.pathListElementExists[compareValue] {
 		return nil
 	}
 
-	h.container.pathListElementExists[key][compareValue] = true
+	envVar.pathListElementExists[compareValue] = true
 
-	if !filepath.IsAbs(cleanValue) {
-		return &klib.Error{
-			ID:     "0d3fb866-c0be-420d-89e7-11b0f05ff132",
-			Status: http.StatusBadRequest,
-			Code:   klib.CodeInvalidValue,
-			Detail: fmt.Sprintf("Path for key %s is not absolute: %s (clean: %s)", key, value, cleanValue),
-			Meta: map[string]any{
-				"key":        key,
-				"value":      value,
-				"cleanValue": cleanValue,
-			},
-		}
-	}
-
-	var err error
-
-	h.container.pathListElements[key], err = klib.InsertSliceElem(
-		h.container.pathListElements[key],
+	envVar.pathListElements, err = klib.InsertSliceElem(
+		envVar.pathListElements,
 		cleanValue,
 		index,
 	)
@@ -69,23 +65,20 @@ func (h *defaultPathHandler) Add(key, value string, index int) error {
 }
 
 type PathLoader interface {
-	Load(key string) error
+	Load(envVar *environVar) error
 }
 
 type defaultPathLoader struct {
-	container *container
-
 	pathHandler PathHandler
 }
 
-func (l *defaultPathLoader) Load(key string) error {
-	if l.container.pathListExists[key] {
+func (l *defaultPathLoader) Load(envVar *environVar) error {
+	if envVar.pathList {
 		return nil
 	}
 
-	l.container.pathListExists[key] = true
-
-	value := l.container.curEnv[key]
+	envVar.pathList = true
+	value := envVar.currentValue
 
 	if value == "" {
 		return nil
@@ -100,7 +93,10 @@ func (l *defaultPathLoader) Load(key string) error {
 			continue
 		}
 
-		if err := l.pathHandler.Add(key, element, -1); err != nil {
+		// Ensure there will be a diff for this key.
+		envVar.currentValue = ""
+
+		if err := l.pathHandler.Add(envVar, element, -1); err != nil {
 			return klib.ForwardError("b3bf3b89-656b-4882-bdb7-b773d708ea64", err)
 		}
 	}

@@ -19,6 +19,7 @@ const DefaultEnvLoadFilename = ".xpdt.yaml"
 
 const EnvPrefix = "XPDT"
 const EnvConfigPath = EnvPrefix + "_CONFIG_PATH"
+const EnvReverseVar = EnvPrefix + "_REVERSE"
 
 type Config struct {
 	Env *Env `toml:"env,omitempty" yaml:"env,omitempty"`

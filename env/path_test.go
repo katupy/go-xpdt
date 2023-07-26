@@ -2,13 +2,13 @@ package env
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
+	"go.katupy.io/klib/mucache"
 	"go.katupy.io/klib/must"
 )
 
@@ -16,56 +16,34 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 	testCases := []*struct {
 		name         string
 		pathHandler  *defaultPathHandler
-		key          string
+		envVar       *environVar
 		value        string
 		position     int
 		err          *klib.Error
 		wantPathList []string
 	}{
 		{
-			name:  "non-abs-path-list-value",
-			key:   "foo",
-			value: "bar",
-			pathHandler: &defaultPathHandler{
-				container: &container{
-					pathListElementExists: map[string]map[string]bool{},
-				},
+			name: "new-path-list",
+			envVar: &environVar{
+				key: "foo",
 			},
-			err: &klib.Error{
-				ID:     "0d3fb866-c0be-420d-89e7-11b0f05ff132",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeInvalidValue,
-			},
-		},
-		{
-			name:  "new-path-list",
-			key:   "foo",
-			value: must.FilepathAbs("bar"),
-			pathHandler: &defaultPathHandler{
-				container: &container{
-					pathListElements:      map[string][]string{},
-					pathListElementExists: map[string]map[string]bool{},
-				},
-			},
+			value:       must.FilepathAbs("bar"),
+			pathHandler: &defaultPathHandler{},
 			wantPathList: []string{
 				must.FilepathAbs("bar"),
 			},
 		},
 		{
-			name:  "prepend",
-			key:   "foo",
-			value: must.FilepathAbs("bar"),
-			pathHandler: &defaultPathHandler{
-				container: &container{
-					pathListElements: map[string][]string{
-						"foo": {
-							must.FilepathAbs("a"),
-							must.FilepathAbs("b"),
-						},
-					},
-					pathListElementExists: map[string]map[string]bool{},
+			name: "prepend",
+			envVar: &environVar{
+				key: "foo",
+				pathListElements: []string{
+					must.FilepathAbs("a"),
+					must.FilepathAbs("b"),
 				},
 			},
+			value:       must.FilepathAbs("bar"),
+			pathHandler: &defaultPathHandler{},
 			wantPathList: []string{
 				must.FilepathAbs("bar"),
 				must.FilepathAbs("a"),
@@ -73,21 +51,17 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 			},
 		},
 		{
-			name:     "append",
-			key:      "foo",
-			value:    must.FilepathAbs("bar"),
-			position: -1,
-			pathHandler: &defaultPathHandler{
-				container: &container{
-					pathListElements: map[string][]string{
-						"foo": {
-							must.FilepathAbs("a"),
-							must.FilepathAbs("b"),
-						},
-					},
-					pathListElementExists: map[string]map[string]bool{},
+			name: "append",
+			envVar: &environVar{
+				key: "foo",
+				pathListElements: []string{
+					must.FilepathAbs("a"),
+					must.FilepathAbs("b"),
 				},
 			},
+			value:       must.FilepathAbs("bar"),
+			position:    -1,
+			pathHandler: &defaultPathHandler{},
 			wantPathList: []string{
 				must.FilepathAbs("a"),
 				must.FilepathAbs("b"),
@@ -95,27 +69,23 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 			},
 		},
 		{
-			name:  "ignore-existing-path-case-sensitive",
-			key:   "foo",
+			name: "ignore-existing-path-case-sensitive",
+			envVar: &environVar{
+				key: "foo",
+				pathListElements: []string{
+					must.FilepathAbs("a"),
+					must.FilepathAbs("b"),
+					must.FilepathAbs("bar"),
+				},
+				pathListElementExists: map[string]bool{
+					must.FilepathAbs("a"):   true,
+					must.FilepathAbs("b"):   true,
+					must.FilepathAbs("bar"): true,
+				},
+			},
 			value: must.FilepathAbs("bar"),
 			pathHandler: &defaultPathHandler{
 				caseSensitiveFilesystem: true,
-				container: &container{
-					pathListElements: map[string][]string{
-						"foo": {
-							must.FilepathAbs("a"),
-							must.FilepathAbs("b"),
-							must.FilepathAbs("bar"),
-						},
-					},
-					pathListElementExists: map[string]map[string]bool{
-						"foo": {
-							must.FilepathAbs("a"):   true,
-							must.FilepathAbs("b"):   true,
-							must.FilepathAbs("bar"): true,
-						},
-					},
-				},
 			},
 			wantPathList: []string{
 				must.FilepathAbs("a"),
@@ -124,27 +94,22 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 			},
 		},
 		{
-			name:  "ignore-existing-path-case-insensitive",
-			key:   "foo",
-			value: must.FilepathAbs("bar"),
-			pathHandler: &defaultPathHandler{
-				container: &container{
-					pathListElements: map[string][]string{
-						"foo": {
-							must.FilepathAbs("a"),
-							must.FilepathAbs("b"),
-							must.FilepathAbs("bar"),
-						},
-					},
-					pathListElementExists: map[string]map[string]bool{
-						"foo": {
-							strings.ToUpper(must.FilepathAbs("a")):   true,
-							strings.ToUpper(must.FilepathAbs("b")):   true,
-							strings.ToUpper(must.FilepathAbs("bar")): true,
-						},
-					},
+			name: "ignore-existing-path-case-insensitive",
+			envVar: &environVar{
+				key: "foo",
+				pathListElements: []string{
+					must.FilepathAbs("a"),
+					must.FilepathAbs("b"),
+					must.FilepathAbs("bar"),
+				},
+				pathListElementExists: map[string]bool{
+					strings.ToUpper(must.FilepathAbs("a")):   true,
+					strings.ToUpper(must.FilepathAbs("b")):   true,
+					strings.ToUpper(must.FilepathAbs("bar")): true,
 				},
 			},
+			value:       must.FilepathAbs("bar"),
+			pathHandler: &defaultPathHandler{},
 			wantPathList: []string{
 				must.FilepathAbs("a"),
 				must.FilepathAbs("b"),
@@ -152,27 +117,23 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 			},
 		},
 		{
-			name:  "duplicate-similar-path-case-sensitive",
-			key:   "foo",
+			name: "duplicate-similar-path-case-sensitive",
+			envVar: &environVar{
+				key: "foo",
+				pathListElements: []string{
+					must.FilepathAbs("a"),
+					must.FilepathAbs("b"),
+					must.FilepathAbs("bar"),
+				},
+				pathListElementExists: map[string]bool{
+					must.FilepathAbs("a"):   true,
+					must.FilepathAbs("b"):   true,
+					must.FilepathAbs("bar"): true,
+				},
+			},
 			value: strings.ToUpper(must.FilepathAbs("bar")),
 			pathHandler: &defaultPathHandler{
 				caseSensitiveFilesystem: true,
-				container: &container{
-					pathListElements: map[string][]string{
-						"foo": {
-							must.FilepathAbs("a"),
-							must.FilepathAbs("b"),
-							must.FilepathAbs("bar"),
-						},
-					},
-					pathListElementExists: map[string]map[string]bool{
-						"foo": {
-							must.FilepathAbs("a"):   true,
-							must.FilepathAbs("b"):   true,
-							must.FilepathAbs("bar"): true,
-						},
-					},
-				},
 			},
 			wantPathList: []string{
 				strings.ToUpper(must.FilepathAbs("bar")),
@@ -187,18 +148,18 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			err := tc.pathHandler.Add(tc.key, tc.value, tc.position)
+			err := tc.pathHandler.Add(tc.envVar, tc.value, tc.position)
 			if klib.CheckTestError(st, err, tc.err) {
 				return
 			}
 
+			havePathList := tc.envVar.pathListElements
 			wantPathList := tc.wantPathList
-			havePathList := tc.pathHandler.container.pathListElements[tc.key]
 
 			if assert.Equal(st, len(wantPathList), len(havePathList), "Path list length mismatch") {
 				for i := range wantPathList {
-					want := wantPathList[i]
 					have := havePathList[i]
+					want := wantPathList[i]
 
 					assert.Equal(st, want, have, "PathList[%d] value mismatch", i)
 				}
@@ -208,81 +169,71 @@ func Test_defaultPathHandler_Add(t *testing.T) {
 }
 
 func Test_defaultPathLoader_Load(t *testing.T) {
+	cache := mucache.New[string, *environVar]()
 	pathA := must.FilepathAbs("a")
 	pathB := must.FilepathAbs("b")
 	pathC := must.FilepathAbs("c")
 
 	testCases := []*struct {
 		name              string
-		key               string
+		envVar            *environVar
 		pathLoader        *defaultPathLoader
 		mockPathHandlerOn [][]any
 		err               *klib.Error
 	}{
 		{
 			name: "path-list-exists",
-			key:  "foo",
-			pathLoader: &defaultPathLoader{
-				container: &container{
-					pathListExists: map[string]bool{
-						"foo": true,
-					},
-				},
+			envVar: &environVar{
+				pathList: true,
 			},
+			pathLoader: &defaultPathLoader{},
 		},
 		{
-			name: "empty-value",
-			key:  "foo",
-			pathLoader: &defaultPathLoader{
-				container: &container{
-					pathListExists: map[string]bool{},
-				},
-			},
+			name:       "empty-value",
+			envVar:     &environVar{},
+			pathLoader: &defaultPathLoader{},
 		},
 		{
 			name: "create-path-list",
-			key:  "foo",
-			pathLoader: &defaultPathLoader{
-				container: &container{
-					curEnv: map[string]string{
-						"foo": strings.Join(
-							[]string{
-								pathA,
-								pathB,
-								pathC,
-							},
-							string(os.PathListSeparator),
-						),
-					},
-					pathListExists: map[string]bool{},
+			envVar: cache.SetGet(
+				"create-path-list",
+				&environVar{
+					currentValue: strings.Join(
+						[]string{
+							pathA,
+							pathB,
+							pathC,
+						},
+						string(os.PathListSeparator),
+					),
 				},
-			},
+			),
+			pathLoader: &defaultPathLoader{},
 			mockPathHandlerOn: [][]any{
-				{"Add", "foo", pathA, -1, nil},
-				{"Add", "foo", pathB, -1, nil},
-				{"Add", "foo", pathC, -1, nil},
+				{"Add", cache.Get("create-path-list"), pathA, -1, nil},
+				{"Add", cache.Get("create-path-list"), pathB, -1, nil},
+				{"Add", cache.Get("create-path-list"), pathC, -1, nil},
 			},
 		},
 		{
 			name: "ignore-empty-path-element",
-			key:  "foo",
-			pathLoader: &defaultPathLoader{
-				container: &container{
-					curEnv: map[string]string{
-						"foo": strings.Join(
-							[]string{
-								pathA,
-								pathC,
-							},
-							string(os.PathListSeparator),
-						),
-					},
-					pathListExists: map[string]bool{},
+			envVar: cache.SetGet(
+				"ignore-empty-path-element",
+				&environVar{
+					currentValue: strings.Join(
+						[]string{
+							pathA,
+							"",
+							pathC,
+						},
+						string(os.PathListSeparator),
+					),
 				},
-			},
+			),
+			pathLoader: &defaultPathLoader{},
 			mockPathHandlerOn: [][]any{
-				{"Add", "foo", pathA, -1, nil},
-				{"Add", "foo", pathC, -1, nil},
+				{"Add", cache.Get("ignore-empty-path-element"), pathA, -1, nil},
+				{"Add", cache.Get("ignore-empty-path-element"), pathC, -1, nil},
 			},
 		},
 	}
@@ -302,7 +253,7 @@ func Test_defaultPathLoader_Load(t *testing.T) {
 				tc.pathLoader.pathHandler = mockPathHandler
 			}
 
-			err := tc.pathLoader.Load(tc.key)
+			err := tc.pathLoader.Load(tc.envVar)
 			if klib.CheckTestError(st, err, tc.err) {
 				return
 			}

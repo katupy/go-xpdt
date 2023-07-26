@@ -16,16 +16,35 @@ import (
 
 const (
 	zshHook = `function _xpdt_env_load() {
-	j=$(%s env load)
+	local _OP_READ_CMD=1
+	local _OP_READ_KEY=2
+	local _OP_READ_VALUE=3
 
-	for k in $(printf "%%s" "$j" | jq -Mcr 'to_entries[] | .key'); do
-		v=$(printf "%%s" "$j" | jq -Mcr '.'$k'')
+	local OP=$_OP_READ_CMD
+	local CMD=""
+	local KEY=""
 
-		if [ -z "$v" ]; then
-			unset $k
-		else
-			export $k="$v"
-		fi
+	echo "$(%s env load)" | while read line; do
+		case $OP in
+		$_OP_READ_CMD)
+			CMD="$line"
+			OP=$_OP_READ_KEY
+			;;
+		$_OP_READ_KEY)
+			KEY="$line"
+
+			if [ "$CMD" = "SET" ]; then
+				OP=$_OP_READ_VALUE
+			elif [ "$CMD" = "DEL" ]; then
+				unset "$KEY"
+				OP=$_OP_READ_CMD
+			fi
+			;;
+		$_OP_READ_VALUE)
+			export "$KEY"="$line"
+			OP=$_OP_READ_CMD
+			;;
+		esac
 	done
 }
 
@@ -94,6 +113,7 @@ var envLoadCmd = &cobra.Command{
 		loader := env.NewLoader(config)
 
 		if err := loader.Load(); err != nil {
+			// TODO: improve console logging.
 			return fmt.Errorf("failed to load env: %w", err)
 		}
 

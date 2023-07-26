@@ -80,12 +80,22 @@ func (m *defaultCommandMethods) Add(cmd *Command) error {
 	}
 
 	key := cmd.Add
+	keyName := key
 
 	if m.container.caseInsensitiveEnvironment {
-		key = strings.ToUpper(key)
+		keyName = strings.ToUpper(keyName)
 	}
 
-	if err := m.pathLoader.Load(key); err != nil {
+	envVar, haveVar := m.container.env[keyName]
+	if !haveVar {
+		envVar = &environVar{
+			key:     key,
+			created: true,
+		}
+		m.container.env[keyName] = envVar
+	}
+
+	if err := m.pathLoader.Load(envVar); err != nil {
 		return klib.ForwardError("bfb999a7-55af-47ab-a8b3-bc15be757c48", err)
 	}
 
@@ -96,13 +106,15 @@ func (m *defaultCommandMethods) Add(cmd *Command) error {
 			index -= 1
 		}
 
-		if err := m.pathHandler.Add(key, values[i], index); err != nil {
+		if err := m.pathHandler.Add(envVar, values[i], index); err != nil {
 			return klib.ForwardError("4aa49cf3-1289-403a-bbb2-b25d6ad84a4c", err)
 		}
 	}
 
 	// Ensure key persists if it was deleted before.
-	delete(m.container.delEnv, key)
+	if envVar.delete {
+		envVar.delete = false
+	}
 
 	return nil
 }
@@ -114,40 +126,45 @@ func (m *defaultCommandMethods) Set(cmd *Command) error {
 	}
 
 	key := cmd.Set
+	keyName := key
 
 	if m.container.caseInsensitiveEnvironment {
-		key = strings.ToUpper(key)
+		keyName = strings.ToUpper(keyName)
 	}
 
-	m.container.curEnv[key] = value
+	envVar, haveVar := m.container.env[keyName]
+	if !haveVar {
+		envVar = &environVar{
+			key:     key,
+			created: true,
+		}
+		m.container.env[keyName] = envVar
+	}
+
+	envVar.currentValue = value
 
 	// Ensure key persists if it was deleted before.
-	delete(m.container.delEnv, key)
+	if envVar.delete {
+		envVar.delete = false
+	}
 
 	return nil
 }
 
 func (m *defaultCommandMethods) Del(cmd *Command) error {
 	key := cmd.Del
+	keyName := key
 
 	if m.container.caseInsensitiveEnvironment {
-		key = strings.ToUpper(key)
+		keyName = strings.ToUpper(keyName)
 	}
 
 	if key == "*" {
-		for k := range m.container.curEnv {
-			m.container.delEnv[k] = true
+		for _, envVar := range m.container.env {
+			envVar.resetAndDelete()
 		}
-
-		m.container.curEnv = make(map[string]string)
-		m.container.resetPaths()
-	} else if _, ok := m.container.curEnv[key]; ok {
-		m.container.delEnv[key] = true
-
-		delete(m.container.curEnv, key)
-		delete(m.container.pathListElements, key)
-		delete(m.container.pathListElementExists, key)
-		delete(m.container.pathListExists, key)
+	} else if envVar, haveVar := m.container.env[keyName]; haveVar {
+		envVar.resetAndDelete()
 	}
 
 	return nil

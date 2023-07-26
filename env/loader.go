@@ -75,12 +75,6 @@ func (l *Loader) Load() error {
 		}
 	}
 
-	if len(l.files) == 0 {
-		// Nothing to do.
-		logDuration()
-		return nil
-	}
-
 	if len(l.config.Env.Load.Environ) == 0 {
 		l.config.Env.Load.Environ = os.Environ()
 	}
@@ -93,27 +87,21 @@ func (l *Loader) Load() error {
 		caseInsensitiveEnvironment: l.config.CaseInsensitiveEnvironment,
 	}
 
-	// The starting (static) env.
-	c.oldEnv = GetEnviron(l.config.Env.Load.Environ, c.caseInsensitiveEnvironment)
+	l.container = c
 
-	// The current (modifiable) env.
-	// It starts as a copy of the old env.
-	c.curEnv = make(map[string]string, len(c.oldEnv))
-
-	for k, v := range c.oldEnv {
-		c.curEnv[k] = v
+	if err := c.loadEnviron(l.config.Env.Load.Environ); err != nil {
+		return klib.ForwardError("860fd303-8d01-45ac-9cce-9c901ec7d05d", err)
 	}
 
-	c.delEnv = make(map[string]bool)
-	c.resetPaths()
+	if err := c.applyReverse(); err != nil {
+		return klib.ForwardError("e19c02fa-1e38-45b5-b520-ece8edcb621b", err)
+	}
 
 	pathHandler := &defaultPathHandler{
 		caseSensitiveFilesystem: l.config.CaseSensitiveFilesystem,
-		container:               c,
 	}
 
 	pathLoader := &defaultPathLoader{
-		container:   c,
 		pathHandler: pathHandler,
 	}
 
@@ -128,6 +116,7 @@ func (l *Loader) Load() error {
 		commandLoader: &defaultCommandLoader{
 			platform: platform,
 			commandMethods: &defaultCommandMethods{
+				container:       c,
 				pathHandler:     pathHandler,
 				pathLoader:      pathLoader,
 				templateHandler: l.templateHandler,
@@ -143,35 +132,15 @@ func (l *Loader) Load() error {
 		}
 	}
 
-	// MERGE PATHS
+	c.makeDiff()
 
-	// Calculate diff
-
-	// Calculate REVERSE
-
-	// PRINT DIFF COMMANDS
+	if err := c.writeDiff(l.config.Outw); err != nil {
+		return klib.ForwardError("35c11746-07ad-4bf0-86f9-a811a7e57aff", err)
+	}
 
 	logDuration()
 
 	return nil
-}
-
-// GetEnviron returns a map of environment variables from the given environ slice.
-// It also accounts for case-insensitive keys for environments like Windows.
-func GetEnviron(environ []string, ignoreCase bool) map[string]string {
-	env := make(map[string]string, len(environ))
-
-	for i := range environ {
-		p := strings.SplitN(environ[i], "=", 2)
-
-		if ignoreCase {
-			env[strings.ToUpper(p[0])] = p[1]
-		} else {
-			env[p[0]] = p[1]
-		}
-	}
-
-	return env
 }
 
 // FindFiles register the slice of files to be loaded, starting from the current directory
@@ -371,10 +340,18 @@ func (l *Loader) genTemplateHandler(data map[string]any) {
 	funcMap := klib.BaseFuncMap()
 
 	getEnv := func(k string) string {
+		keyName := k
+
 		if l.container.caseInsensitiveEnvironment {
-			return l.container.curEnv[strings.ToUpper(k)]
+			keyName = strings.ToUpper(keyName)
 		}
-		return l.container.curEnv[k]
+
+		envVar, haveVar := l.container.env[keyName]
+		if !haveVar || envVar.delete {
+			return ""
+		}
+
+		return envVar.currentValue
 	}
 
 	expandEnv := func(s string) string {

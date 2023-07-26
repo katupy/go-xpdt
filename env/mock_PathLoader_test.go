@@ -17,13 +17,13 @@ func (_m *MockPathLoader) EXPECT() *MockPathLoader_Expecter {
 	return &MockPathLoader_Expecter{mock: &_m.Mock}
 }
 
-// Load provides a mock function with given fields: key
-func (_m *MockPathLoader) Load(key string) error {
-	ret := _m.Called(key)
+// Load provides a mock function with given fields: envVar
+func (_m *MockPathLoader) Load(envVar *environVar) error {
+	ret := _m.Called(envVar)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
-		r0 = rf(key)
+	if rf, ok := ret.Get(0).(func(*environVar) error); ok {
+		r0 = rf(envVar)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -37,14 +37,14 @@ type MockPathLoader_Load_Call struct {
 }
 
 // Load is a helper method to define mock.On call
-//   - key string
-func (_e *MockPathLoader_Expecter) Load(key interface{}) *MockPathLoader_Load_Call {
-	return &MockPathLoader_Load_Call{Call: _e.mock.On("Load", key)}
+//   - envVar *environVar
+func (_e *MockPathLoader_Expecter) Load(envVar interface{}) *MockPathLoader_Load_Call {
+	return &MockPathLoader_Load_Call{Call: _e.mock.On("Load", envVar)}
 }
 
-func (_c *MockPathLoader_Load_Call) Run(run func(key string)) *MockPathLoader_Load_Call {
+func (_c *MockPathLoader_Load_Call) Run(run func(envVar *environVar)) *MockPathLoader_Load_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
+		run(args[0].(*environVar))
 	})
 	return _c
 }
@@ -54,7 +54,7 @@ func (_c *MockPathLoader_Load_Call) Return(_a0 error) *MockPathLoader_Load_Call 
 	return _c
 }
 
-func (_c *MockPathLoader_Load_Call) RunAndReturn(run func(string) error) *MockPathLoader_Load_Call {
+func (_c *MockPathLoader_Load_Call) RunAndReturn(run func(*environVar) error) *MockPathLoader_Load_Call {
 	_c.Call.Return(run)
 	return _c
 }

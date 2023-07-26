@@ -17,13 +17,13 @@ func (_m *MockPathHandler) EXPECT() *MockPathHandler_Expecter {
 	return &MockPathHandler_Expecter{mock: &_m.Mock}
 }
 
-// Add provides a mock function with given fields: key, value, position
-func (_m *MockPathHandler) Add(key string, value string, position int) error {
-	ret := _m.Called(key, value, position)
+// Add provides a mock function with given fields: envVar, value, position
+func (_m *MockPathHandler) Add(envVar *environVar, value string, position int) error {
+	ret := _m.Called(envVar, value, position)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, int) error); ok {
-		r0 = rf(key, value, position)
+	if rf, ok := ret.Get(0).(func(*environVar, string, int) error); ok {
+		r0 = rf(envVar, value, position)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -37,16 +37,16 @@ type MockPathHandler_Add_Call struct {
 }
 
 // Add is a helper method to define mock.On call
-//   - key string
+//   - envVar *environVar
 //   - value string
 //   - position int
-func (_e *MockPathHandler_Expecter) Add(key interface{}, value interface{}, position interface{}) *MockPathHandler_Add_Call {
-	return &MockPathHandler_Add_Call{Call: _e.mock.On("Add", key, value, position)}
+func (_e *MockPathHandler_Expecter) Add(envVar interface{}, value interface{}, position interface{}) *MockPathHandler_Add_Call {
+	return &MockPathHandler_Add_Call{Call: _e.mock.On("Add", envVar, value, position)}
 }
 
-func (_c *MockPathHandler_Add_Call) Run(run func(key string, value string, position int)) *MockPathHandler_Add_Call {
+func (_c *MockPathHandler_Add_Call) Run(run func(envVar *environVar, value string, position int)) *MockPathHandler_Add_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(int))
+		run(args[0].(*environVar), args[1].(string), args[2].(int))
 	})
 	return _c
 }
@@ -56,7 +56,7 @@ func (_c *MockPathHandler_Add_Call) Return(_a0 error) *MockPathHandler_Add_Call 
 	return _c
 }
 
-func (_c *MockPathHandler_Add_Call) RunAndReturn(run func(string, string, int) error) *MockPathHandler_Add_Call {
+func (_c *MockPathHandler_Add_Call) RunAndReturn(run func(*environVar, string, int) error) *MockPathHandler_Add_Call {
 	_c.Call.Return(run)
 	return _c
 }
