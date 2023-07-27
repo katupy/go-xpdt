@@ -14,49 +14,6 @@ import (
 	"go.katupy.io/xpdt/env"
 )
 
-const (
-	zshHook = `function _xpdt_env_load() {
-	local _OP_READ_CMD=1
-	local _OP_READ_KEY=2
-	local _OP_READ_VALUE=3
-
-	local OP=$_OP_READ_CMD
-	local CMD=""
-	local KEY=""
-
-	echo "$(%s env load)" | while read line; do
-		case $OP in
-		$_OP_READ_CMD)
-			CMD="$line"
-			OP=$_OP_READ_KEY
-			;;
-		$_OP_READ_KEY)
-			KEY="$line"
-
-			if [ "$CMD" = "SET" ]; then
-				OP=$_OP_READ_VALUE
-			elif [ "$CMD" = "DEL" ]; then
-				unset "$KEY"
-				OP=$_OP_READ_CMD
-			fi
-			;;
-		$_OP_READ_VALUE)
-			export "$KEY"="$line"
-			OP=$_OP_READ_CMD
-			;;
-		esac
-	done
-}
-
-function cd() {
-	builtin cd $1
-	_xpdt_env_load
-}
-`
-
-	powerShellHook = ``
-)
-
 var envHookCmd = &cobra.Command{
 	Use:   "hook",
 	Short: "Set shell env hook.",
@@ -80,9 +37,9 @@ var envHookCmd = &cobra.Command{
 
 		switch strings.ToLower(args[0]) {
 		case "powershell":
-			fmt.Println(powerShellHook)
+			fmt.Println(env.PowerShellHook)
 		case "zsh":
-			fmt.Printf(zshHook, cmdName)
+			fmt.Printf(env.ZshHook, cmdName)
 		default:
 			return fmt.Errorf("unsupported shell: %s", args[0])
 		}

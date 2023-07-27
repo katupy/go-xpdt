@@ -92,11 +92,11 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 		cmd                   *Command
 		compareKey            string
 		commandMethods        *defaultCommandMethods
+		wantEnv               map[string]*environVar
 		mockTemplateHandlerOn []any
 		mockPathLoaderOn      []any
 		mockPathHandlerOn     [][]any
 		err                   *klib.Error
-		wantCreated           bool
 	}{
 		{
 			name:           "missing-value",
@@ -119,15 +119,21 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					env: map[string]*environVar{
-						"foo": cache.SetGet(
-							"append-and-undelete",
-							&environVar{
-								currentValue: "?",
-								delete:       true,
-							},
-						),
+						"foo": {
+							currentValue: "?",
+							delete:       true,
+						},
 					},
 				},
+			},
+			wantEnv: map[string]*environVar{
+				"foo": cache.SetGet(
+					"append-and-undelete",
+					&environVar{
+						currentValue: "?",
+						delete:       false,
+					},
+				),
 			},
 			mockTemplateHandlerOn: []any{"Handle", "=", "OK", nil},
 			mockPathLoaderOn:      []any{"Load", cache.Get("append-and-undelete"), nil},
@@ -144,15 +150,17 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			compareKey: "bar",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
-					env: map[string]*environVar{
-						"bar": cache.SetGet(
-							"prepend",
-							&environVar{
-								currentValue: "?",
-							},
-						),
-					},
+					env: map[string]*environVar{},
 				},
+			},
+			wantEnv: map[string]*environVar{
+				"bar": cache.SetGet(
+					"prepend",
+					&environVar{
+						key:     "bar",
+						created: true,
+					},
+				),
 			},
 			mockTemplateHandlerOn: []any{"Handle", "@", "Done", nil},
 			mockPathLoaderOn:      []any{"Load", cache.Get("prepend"), nil},
@@ -170,16 +178,17 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					caseInsensitiveEnvironment: true,
-					env: map[string]*environVar{
-						"BAR": cache.SetGet(
-							"prepend-case-insensitive",
-							&environVar{
-								currentValue: "?",
-								delete:       true,
-							},
-						),
-					},
+					env:                        map[string]*environVar{},
 				},
+			},
+			wantEnv: map[string]*environVar{
+				"BAR": cache.SetGet(
+					"prepend-case-insensitive",
+					&environVar{
+						key:     "bar",
+						created: true,
+					},
+				),
 			},
 			mockTemplateHandlerOn: []any{"Handle", "@", "Done", nil},
 			mockPathLoaderOn:      []any{"Load", cache.Get("prepend-case-insensitive"), nil},
@@ -221,7 +230,17 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 				return
 			}
 
-			assert.False(st, tc.commandMethods.container.env[tc.compareKey].delete, "Key should not be deleted")
+			haveEnv := tc.commandMethods.container.env
+			wantEnv := tc.wantEnv
+
+			if assert.Equal(st, len(wantEnv), len(haveEnv), "Env length mismatch") {
+				for k := range wantEnv {
+					have := haveEnv[k]
+					want := wantEnv[k]
+
+					assert.Equal(st, want, have, "Env[%q] mismatch", k)
+				}
+			}
 		})
 	}
 }
@@ -230,10 +249,10 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 	testCases := []*struct {
 		name                  string
 		cmd                   *Command
-		compareKey            string
 		commandMethods        *defaultCommandMethods
 		mockTemplateHandlerOn []any
 		err                   *klib.Error
+		wantEnv               map[string]*environVar
 	}{
 		{
 			name: "create",
@@ -241,13 +260,19 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				Set:   "foo",
 				Value: "bar",
 			},
-			compareKey: "foo",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					env: map[string]*environVar{},
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "bar", "barOK", nil},
+			wantEnv: map[string]*environVar{
+				"foo": {
+					key:          "foo",
+					currentValue: "barOK",
+					created:      true,
+				},
+			},
 		},
 		{
 			name: "overwrite",
@@ -255,7 +280,6 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				Set:   "foo",
 				Value: "bar",
 			},
-			compareKey: "foo",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					env: map[string]*environVar{
@@ -266,6 +290,11 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "bar", "barOK", nil},
+			wantEnv: map[string]*environVar{
+				"foo": {
+					currentValue: "barOK",
+				},
+			},
 		},
 		{
 			name: "overwrite-case-insensitive-and-undelete",
@@ -273,7 +302,6 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				Set:   "foo",
 				Value: "bar",
 			},
-			compareKey: "FOO",
 			commandMethods: &defaultCommandMethods{
 				container: &container{
 					caseInsensitiveEnvironment: true,
@@ -286,6 +314,11 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				},
 			},
 			mockTemplateHandlerOn: []any{"Handle", "bar", "barOK", nil},
+			wantEnv: map[string]*environVar{
+				"FOO": {
+					currentValue: "barOK",
+				},
+			},
 		},
 	}
 
@@ -307,11 +340,17 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 				return
 			}
 
-			have := tc.commandMethods.container.env[tc.compareKey].currentValue
-			want := tc.cmd.Value + "OK"
+			haveEnv := tc.commandMethods.container.env
+			wantEnv := tc.wantEnv
 
-			assert.Equal(st, want, have, "Value mismatch")
-			assert.False(st, tc.commandMethods.container.env[tc.compareKey].delete, "Key should not be deleted")
+			if assert.Equal(st, len(wantEnv), len(haveEnv), "Env length mismatch") {
+				for k := range wantEnv {
+					have := haveEnv[k]
+					want := wantEnv[k]
+
+					assert.Equal(st, want, have, "Env[%q] mismatch", k)
+				}
+			}
 		})
 	}
 }

@@ -3,11 +3,14 @@ package env
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
+	"go.katupy.io/klib/mucache"
 	"go.katupy.io/xpdt/conf"
 )
 
@@ -304,6 +307,8 @@ func Test_container_applyReverse(t *testing.T) {
 }
 
 func Test_container_makeDiff(t *testing.T) {
+	cache := mucache.New[string, string]()
+
 	testCases := []*struct {
 		name        string
 		container   *container
@@ -335,13 +340,74 @@ func Test_container_makeDiff(t *testing.T) {
 			},
 		},
 		{
-			name: "set-entry",
+			name: "add-empty-entry",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:           "foo",
+						originalValue: "",
+						currentValue:  "",
+						created:       true,
+					},
+				},
+			},
+			wantDiff: []string{
+				"SET", "foo", "",
+			},
+			wantReverse: []string{
+				"DEL", "foo",
+			},
+		},
+		{
+			name: "set-entry-path-list",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:           "foo",
+						originalValue: "bar1",
+						currentValue: cache.SetGet(
+							"set-entry-path-list",
+							strings.Join([]string{"bar1", "bar2", "bar3"}, string(os.PathListSeparator)),
+						),
+					},
+				},
+			},
+			wantDiff: []string{
+				"SET", "foo", cache.Get("set-entry-path-list"),
+			},
+			wantReverse: []string{
+				"SET", "foo", "bar1",
+			},
+		},
+		{
+			name: "set-entry-has-reversal-delete",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:            "foo",
+						originalValue:  "bar-old",
+						currentValue:   "bar",
+						reversal:       true,
+						reversalDelete: true,
+					},
+				},
+			},
+			wantDiff: []string{
+				"SET", "foo", "bar",
+			},
+			wantReverse: []string{
+				"DEL", "foo",
+			},
+		},
+		{
+			name: "set-entry-has-reversal",
 			container: &container{
 				env: map[string]*environVar{
 					"foo": {
 						key:           "foo",
 						originalValue: "bar-old",
 						currentValue:  "bar",
+						reversal:      true,
 					},
 				},
 			},
@@ -372,6 +438,25 @@ func Test_container_makeDiff(t *testing.T) {
 			},
 		},
 		{
+			name: "del-entry-with-reversal-delete",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:            "foo",
+						originalValue:  "",
+						currentValue:   "",
+						delete:         true,
+						reversal:       true,
+						reversalDelete: true,
+					},
+				},
+			},
+			wantDiff: []string{
+				"DEL", "foo",
+			},
+			wantReverse: []string{},
+		},
+		{
 			name: "del-reverse-env",
 			container: &container{
 				env: map[string]*environVar{
@@ -385,6 +470,37 @@ func Test_container_makeDiff(t *testing.T) {
 			},
 			wantDiff: []string{
 				"DEL", conf.EnvReverseVar,
+			},
+			wantReverse: []string{},
+		},
+		{
+			name: "skip-unchanged-entry",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:           "foo",
+						originalValue: "bar",
+						currentValue:  "bar",
+					},
+				},
+			},
+			wantDiff:    []string{},
+			wantReverse: []string{},
+		},
+		{
+			name: "apply-reversal-on-unchanged-reversal-entry",
+			container: &container{
+				env: map[string]*environVar{
+					"foo": {
+						key:           "foo",
+						originalValue: "bar",
+						currentValue:  "bar",
+						reversal:      true,
+					},
+				},
+			},
+			wantDiff: []string{
+				"SET", "foo", "bar",
 			},
 			wantReverse: []string{},
 		},

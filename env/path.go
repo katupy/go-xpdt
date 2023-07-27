@@ -84,6 +84,8 @@ func (l *defaultPathLoader) Load(envVar *environVar) error {
 		return nil
 	}
 
+	// Ensure there will be a diff for this key.
+	envVar.currentValue = ""
 	elements := strings.Split(value, string(os.PathListSeparator))
 
 	for i := range elements {
@@ -92,9 +94,6 @@ func (l *defaultPathLoader) Load(envVar *environVar) error {
 		if element == "" {
 			continue
 		}
-
-		// Ensure there will be a diff for this key.
-		envVar.currentValue = ""
 
 		if err := l.pathHandler.Add(envVar, element, -1); err != nil {
 			return klib.ForwardError("b3bf3b89-656b-4882-bdb7-b773d708ea64", err)

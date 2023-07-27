@@ -13,6 +13,49 @@ import (
 	"go.katupy.io/xpdt/conf"
 )
 
+const (
+	ZshHook = `function _xpdt_env_load() {
+	local _OP_READ_CMD=1
+	local _OP_READ_KEY=2
+	local _OP_READ_VALUE=3
+
+	local OP=$_OP_READ_CMD
+	local CMD=""
+	local KEY=""
+
+	echo "$(%s env load)" | while read line; do
+		case $OP in
+		$_OP_READ_CMD)
+			CMD="$line"
+			OP=$_OP_READ_KEY
+			;;
+		$_OP_READ_KEY)
+			KEY="$line"
+
+			if [ "$CMD" = "SET" ]; then
+				OP=$_OP_READ_VALUE
+			elif [ "$CMD" = "DEL" ]; then
+				unset "$KEY"
+				OP=$_OP_READ_CMD
+			fi
+			;;
+		$_OP_READ_VALUE)
+			export "$KEY"="$line"
+			OP=$_OP_READ_CMD
+			;;
+		esac
+	done
+}
+
+function cd() {
+	builtin cd $1
+	_xpdt_env_load
+}
+`
+
+	PowerShellHook = ``
+)
+
 type Command struct {
 	Declare string `toml:"declare,omitempty" yaml:"declare,omitempty"`
 	Value   string `toml:"value,omitempty" yaml:"value,omitempty"`
@@ -215,7 +258,7 @@ func (c *container) makeDiff() {
 			continue
 		}
 
-		// If envVar was created during this run, current and original value are likely the same.
+		// If envVar was created during this run and is empty, current and original value are likely the same.
 		// If envVar was created because of a reversalDelete, but later was updated with an empty value,
 		// it would fall into this case as well, so we must explicitly ignore it.
 		if !(envVar.created || envVar.reversalDelete) && envVar.currentValue == envVar.originalValue {
