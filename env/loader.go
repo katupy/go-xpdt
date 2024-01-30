@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/rs/zerolog/log"
 	"go.katupy.io/klib"
 	"gopkg.in/yaml.v3"
@@ -19,8 +20,10 @@ import (
 
 type Loader struct {
 	config    *conf.Config
+	data      map[string]any
 	files     []*File
 	container *container
+	platform  string
 
 	templateHandler klib.StringHandler
 	fileLoader      FileLoader
@@ -105,16 +108,11 @@ func (l *Loader) Load() error {
 		pathHandler: pathHandler,
 	}
 
-	platform := runtime.GOOS + "_" + runtime.GOARCH
-	data := map[string]any{
-		"_PLATFORM": platform,
-	}
-
-	l.genTemplateHandler(data)
+	l.genTemplateHandler(l.data)
 
 	l.fileLoader = &defaultFileLoader{
 		commandLoader: &defaultCommandLoader{
-			platform: platform,
+			platform: l.platform,
 			commandMethods: &defaultCommandMethods{
 				container:       c,
 				pathHandler:     pathHandler,
@@ -161,6 +159,75 @@ func (l *Loader) FindFiles() error {
 
 	if loadFilename == "" {
 		loadFilename = conf.DefaultEnvLoadFilename
+	}
+
+	l.platform = runtime.GOOS + "_" + runtime.GOARCH
+	l.data = map[string]any{
+		"_PLATFORM": l.platform,
+	}
+
+	for k := range l.config.Env.Data {
+		dataKey := k
+		dataFile := l.config.Env.Data[k]
+
+		b, err := os.ReadFile(dataFile)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return &klib.Error{
+					ID:     "145a329c-9fe2-493a-ac6f-e70603dae4ec",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeNotFound,
+					Path:   fmt.Sprintf(".env.data[%s]", dataKey),
+					Title:  "File not found",
+					Cause:  err.Error(),
+					Meta: map[string]any{
+						"filepath": dataFile,
+					},
+				}
+			}
+
+			return &klib.Error{
+				ID:     "96dbb73e-d7e4-4c65-aa2e-81ab2d8bf588",
+				Status: http.StatusInternalServerError,
+				Code:   klib.CodeFileError,
+				Path:   fmt.Sprintf(".env.data[%s]", dataKey),
+				Title:  "Failed to read file",
+				Cause:  err.Error(),
+				Meta: map[string]any{
+					"filepath": dataFile,
+				},
+			}
+		}
+
+		ext := strings.ToLower(filepath.Ext(dataFile))
+		values := make(map[string]any)
+
+		switch ext {
+		case ".toml":
+			if err := toml.Unmarshal(b, &values); err != nil {
+				return &klib.Error{
+					ID:     "5705aeef-f9bb-45c8-815c-b8ca07bcaeda",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeSerializationError,
+					Path:   fmt.Sprintf(".env.data[%s]", dataKey),
+					Title:  "Failed to unmarshal toml file",
+					Cause:  err.Error(),
+				}
+			}
+		case ".yaml":
+			if err := yaml.Unmarshal(b, &values); err != nil {
+				return &klib.Error{
+					ID:     "c86e9b6f-a41c-4656-855e-7c6f6723efdd",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeSerializationError,
+					Path:   fmt.Sprintf(".env.data[%s]", dataKey),
+					Title:  "Failed to unmarshal yaml file",
+					Cause:  err.Error(),
+				}
+			}
+		}
+
+		l.data[k] = values
 	}
 
 	// There might be multiple overwrites for the same directory.
@@ -251,15 +318,31 @@ func (l *Loader) FindFiles() error {
 			}
 		}
 
+		ext := strings.ToLower(filepath.Ext(overwrite.File))
 		file := new(File)
-		if err := yaml.Unmarshal(b, file); err != nil {
-			return false, &klib.Error{
-				ID:     "f7476e4b-e592-4f2c-ab97-cae327b957a4",
-				Status: http.StatusBadRequest,
-				Code:   klib.CodeSerializationError,
-				Path:   path,
-				Title:  "Failed to unmarshal file",
-				Cause:  err.Error(),
+
+		switch ext {
+		case ".toml":
+			if err := toml.Unmarshal(b, file); err != nil {
+				return false, &klib.Error{
+					ID:     "eaac6f84-4e1c-44de-a059-6821006d976a",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeSerializationError,
+					Path:   path,
+					Title:  "Failed to unmarshal toml file",
+					Cause:  err.Error(),
+				}
+			}
+		case ".yaml":
+			if err := yaml.Unmarshal(b, file); err != nil {
+				return false, &klib.Error{
+					ID:     "f7476e4b-e592-4f2c-ab97-cae327b957a4",
+					Status: http.StatusBadRequest,
+					Code:   klib.CodeSerializationError,
+					Path:   path,
+					Title:  "Failed to unmarshal yaml file",
+					Cause:  err.Error(),
+				}
 			}
 		}
 

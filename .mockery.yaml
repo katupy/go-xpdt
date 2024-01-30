@@ -1,6 +1,6 @@
 with-expecter: true
 dir: "{{.InterfaceDir}}"
-filename: "mock_{{.InterfaceName}}_test.go"
+filename: "mock_{{.InterfaceName}}.go"
 inpackage: true
 packages:
   go.katupy.io/xpdt/env:

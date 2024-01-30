@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.katupy.io/klib"
-	"go.katupy.io/klib/mocks/mock_klib"
 	"go.katupy.io/klib/mucache"
 )
 
@@ -202,7 +201,7 @@ func Test_defaultCommandMethods_Add(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			mockTemplateHandler := mock_klib.NewMockStringHandler(st)
+			mockTemplateHandler := klib.NewMockStringHandler(st)
 			mockPathLoader := NewMockPathLoader(st)
 			mockPathHandler := NewMockPathHandler(st)
 
@@ -326,7 +325,7 @@ func Test_defaultCommandMethods_Set(t *testing.T) {
 		tc := testCases[i]
 
 		t.Run(fmt.Sprintf("%d:%s", i, tc.name), func(st *testing.T) {
-			mockTemplateHandler := mock_klib.NewMockStringHandler(st)
+			mockTemplateHandler := klib.NewMockStringHandler(st)
 
 			if len(tc.mockTemplateHandlerOn) > 0 {
 				on := tc.mockTemplateHandlerOn

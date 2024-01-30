@@ -15,7 +15,7 @@ import (
 )
 
 const DefaultEnvLoadDir = "."
-const DefaultEnvLoadFilename = ".xpdt.yaml"
+const DefaultEnvLoadFilename = ".xpdt.toml"
 
 const EnvPrefix = "XPDT"
 const EnvConfigPath = EnvPrefix + "_CONFIG_PATH"
@@ -36,8 +36,9 @@ type Config struct {
 }
 
 type Env struct {
-	Load       *EnvLoad        `toml:"load,omitempty" yaml:"load,omitempty"`
-	Overwrites []*EnvOverwrite `toml:"overwrites,omitempty" yaml:"overwrites,omitempty"`
+	Load       *EnvLoad          `toml:"load,omitempty" yaml:"load,omitempty"`
+	Data       map[string]string `toml:"data,omitempty" yaml:"data,omitempty"`
+	Overwrites []*EnvOverwrite   `toml:"overwrites,omitempty" yaml:"overwrites,omitempty"`
 }
 
 type EnvLoad struct {
@@ -78,7 +79,7 @@ func Find() (*Config, error) {
 	var body, ext string
 
 	if configPath == "" {
-		ext = "yaml"
+		ext = "toml"
 	} else {
 		b, err := os.ReadFile(configPath)
 		if err != nil {

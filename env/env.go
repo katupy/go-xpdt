@@ -15,13 +15,15 @@ import (
 
 const (
 	ZshHook = `function _xpdt_env_load() {
+	local _CMD_SET="SET"
+	local _CMD_DEL="DEL"
 	local _OP_READ_CMD=1
 	local _OP_READ_KEY=2
 	local _OP_READ_VALUE=3
 
-	local OP=$_OP_READ_CMD
 	local CMD=""
 	local KEY=""
+	local OP=$_OP_READ_CMD
 
 	echo "$(%s env load)" | while read line; do
 		case $OP in
@@ -32,12 +34,15 @@ const (
 		$_OP_READ_KEY)
 			KEY="$line"
 
-			if [ "$CMD" = "SET" ]; then
+			case $CMD in
+			$_CMD_SET)
 				OP=$_OP_READ_VALUE
-			elif [ "$CMD" = "DEL" ]; then
+				;;
+			$_CMD_DEL)
 				unset "$KEY"
 				OP=$_OP_READ_CMD
-			fi
+				;;
+			esac
 			;;
 		$_OP_READ_VALUE)
 			export "$KEY"="$line"
